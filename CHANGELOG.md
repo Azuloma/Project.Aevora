@@ -2,6 +2,20 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.3-dev21 - Unreleased
+
+*Development entry 21 toward v0.0.3. Not a release; no build artifacts are published.*
+
+### Changed
+
+- Recompiled launchers (`SUYU_CMD_STATIC_RECOMP`) title their window `In game - Project Aevora <commit> (<mode>, Clang <version>, <platform>) | <FPS...>`, replacing the game-name title; the window is first created as `In game`. `<mode>` is `Static AOT no-JIT`, `Static AOT JIT-capable`, `Hybrid JIT+AOT`, `Dynarmic JIT`, or `PENDING`. Host (non-static) builds keep the previous title.
+- The exporter passes `-DSUYU_RECOMP_CLANG_VERSION=<semver>` (parsed from `clang-cl --version`) to the launcher configure of a clang-cl build and an empty value for an MSVC fallback, which then shows the host compiler id instead of `Clang`.
+- Static launchers embed `dist/aevora_game.ico` as icon id 1 through `suyu.rc`; the export no longer replaces it with the game's own icon (`MakeIconDib` and the `UpdateResource` block in `game_export.cpp` are removed). Steam artwork still uses the game icon.
+
+### Verification
+
+- Host JIT tree: `native_status.cpp` and `emu_window_sdl2_vk.cpp` compile (exit 0). The `SUYU_CMD_STATIC_RECOMP` branches, the icon resource, and the clang version define are not exercised until an export; no export was run.
+
 ## v0.0.3-dev20 - Unreleased
 
 *Development entry 20 toward v0.0.3. Not a release; no build artifacts are published.*

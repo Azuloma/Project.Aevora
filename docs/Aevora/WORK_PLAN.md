@@ -1,67 +1,60 @@
 # Aevora Work Plan
 
-Handoff prepared: 2026-10-25 (end of session 49). Older material is in [OLD_HISTORY.md](OLD_HISTORY.md), newest archive first: [session 49](OLD_HISTORY.md#archived-on-2026-10-25-from-work_planmd-session-49-cleanup), [session 48](OLD_HISTORY.md#archived-on-2026-10-24-from-work_planmd-session-48-cleanup), [session 47](OLD_HISTORY.md#archived-on-2026-10-24-from-work_planmd-session-47-cleanup), [session 46](OLD_HISTORY.md#archived-on-2026-10-24-from-work_planmd-session-46-cleanup), and earlier sections in the same file. The full commit list through dev16, the dev11-dev15 milestone list, the 4c-1b build/comparison record, and the dev15 validation record are in the session 49 archive.
+Handoff prepared: 2026-10-25 (end of session 50). Older material is in [OLD_HISTORY.md](OLD_HISTORY.md), newest archive first: [session 50](OLD_HISTORY.md#archived-on-2026-10-25-from-work_planmd-session-50-cleanup) (the complete previous WORK_PLAN, including the Stage 4c delivery table and the session 49/50 handoff), [session 49](OLD_HISTORY.md#archived-on-2026-10-25-from-work_planmd-session-49-cleanup), [session 48](OLD_HISTORY.md#archived-on-2026-10-24-from-work_planmd-session-48-cleanup), and earlier sections in the same file.
 
 ## Objective
 
-Determine whether PLA can run through Suyu-derived static CPU recompilation, then improve the verified runtime. The N0-N10/G1-G4 end goal is in [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md). The completed CPU path (ARM64 to C translator, exporter, runtime) is described in [CPU_RECOMPILER.md](RECOMPILE_DETAIL/CPU_RECOMPILER.md).
+Determine whether PLA can run through Suyu-derived static CPU recompilation, then improve the verified runtime. The N0-N10/G1-G4 end goal is in [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md). The completed CPU path (ARM64 to C translator, exporter, runtime) is described in [CPU_RECOMPILER.md](RECOMPILE_DETAIL/CPU_RECOMPILER.md). File map: [CODEBASE_INDEX.md](CODEBASE_INDEX.md). N2 design and per-stage results: [N2_DESIGN.md](N2_DESIGN.md) (read by section).
 
 ## Status
 
-HEAD is `ed7886a` (v0.0.3-dev17, N2 stage 4c-1b). The tree was clean except for this documentation update when it was written. Both host trees (`msvc-release` JIT and `msvc-release-nojit`) were reconfigured and rebuilt at `ed7886a` (0 errors, `GIT_REV` checked). Recent commits: dev14 `78c7036` (4b-2), dev15 `0a974bc` (4b-3), dev16 `b0e33ec` (4c-1a), dev17 `ed7886a` (4c-1b).
+HEAD is `38451f6` (v0.0.3-dev20, N2 stage 4c-2). The working tree was clean when the commit was made; this documentation update is the only later change. **Both host trees were last built from the uncommitted dev20 tree (`GIT_REV` `82967e2`); reconfigure and rebuild both at `38451f6` before anything is measured or exported.**
+
+Commits of this stage: dev16 `b0e33ec` (4c-1a), dev17 `ed7886a` (4c-1b), dev18 `0612230` (4c-1c), dev19 `82967e2` (4c-1c review fixes), dev20 `38451f6` (4c-2).
 
 ### N2 progress
 
 | Stage | State |
 |---|---|
-| 0-3 | Done and validated (inventory, standalone mapper, shadow, kernel-free native memory with JIT/AOT validation). |
-| 4a | Done: dev11 (page pool) and dev12 (pool backend inside the memory manager); PLA-validated. |
-| 4b | Done: dev13 (shared layout, JIT-validated), dev14 (kernel-free region predicates), dev15 (`KNativeAddressSpace`, `KPageTable` built lazily only for the fallback). The user declared the dev15 test complete in session 49. |
-| 4c | Designed ([Stage 4c design](N2_DESIGN.md#stage-4c-design-agreed-with-the-user-implementation-not-started)); split into 4c-1a, 4c-1b, 4c-1c, 4c-2, 4c-3 (see below). |
+| 0-4b | Done and validated (inventory, standalone mapper, shadow, kernel-free native memory, physical page pool, shared layout, region predicates, `KNativeAddressSpace`, lazily built `KPageTable`). |
+| 4c-1a (dev16) | Log `native_mem final ...` also from `KernelCore::Impl::Shutdown`. **Never observed in a log** (see Open items). |
+| 4c-1b (dev17) | Rename `KMemoryManager` to `KPhysicalMemory`. |
+| 4c-1c (dev18, dev19) | `k_process_layout.{h,cpp}`: layout, heap-address helpers, `KMemoryRange`, `InvalidateInstructionCacheOfProcessTable` moved out of `KPageTableBase`; Code reviewer fixes (SPDX, comments). |
+| 4c-2 (dev20) | Legacy kernel page table dropped from the `SUYU_NO_JIT` build (details below). `structural_gate.py --require-absent N2` passes on the **host** no-JIT `suyu-cmd.exe` (kernel_memory 95 to 0; report `D:\HisuiWakeBuild\diag\gate_n2_dev20_nojit_host.txt`). |
+| 4c-3 | Not started: leftover cleanups (see next action 4). |
 | 5 | Not started; needs the user's go-ahead. |
 
-Stage 4c delivery state:
+What 4c-2 changed (so a new session can find it):
 
-| Part | Content | State |
-|---|---|---|
-| 4c-1a (dev16 `b0e33ec`) | Log `native_mem final unsupported_ops=... inconsistency=...` from `KernelCore::Impl::Shutdown` as well as `Finalize` | Committed and built. **Not verified**: the line was absent from the log in the JIT run after it (see Open items). |
-| 4c-1b (dev17 `ed7886a`) | Pure rename `KMemoryManager` to `KPhysicalMemory` (`Pool`, `Direction`, `EncodeOption`, files `k_physical_memory.{h,cpp}`, accessor `KernelCore::PhysicalMemory()`) | Committed. `/EP` comparison on both trees explained all differences (73 of 76 signatures by the rename, 3 by the git hash); one JIT PLA run passed (start-up lines, about 245 s, no crash). |
-| 4c-1c (dev18, review fixes dev19) | Move the other `KPageTable` name matches out of shared code into `k_process_layout.{h,cpp}`: `Heap*` conversions, `ComputeProcessLayout`, `ComputeAliasRegionExtraSize`, `ProcessNumGuardPages`, `GetAddressSpaceWidth` (now `GetProcessAddressSpaceWidth`), `InvalidateInstructionCacheOfProcessTable`, `KPageTableBase::MemoryRange` (now `KMemoryRange`) | dev18 `0612230` committed; both host trees rebuilt at it (0 errors, `GIT_REV` checked). Code reviewer found 2 items (SPDX, comments), fixed in dev19. Not done: `/EP` baseline (edited first), gate run on a fresh no-JIT launcher, PLA session. |
-| 4c-2 (dev20) | Drop `KPageTable`, `KPageTableBase`, `KMemoryBlockManager`, `KPageTableManager` and the page table heap from the `SUYU_NO_JIT` build; counted fail-fast stand-in `KAbsentLegacyTable`; optimized-memory failures counted | Implemented in the working tree (session 50), uncommitted. `--require-absent N2` passes on the no-JIT **host** `suyu-cmd.exe` (kernel_memory 95 to 0); both host trees built; JIT `/EP` comparison clean; Code reviewer fixes applied; unit plus 5 mutants pass. Not done: gate on an exported no-JIT launcher, no-JIT AOT PLA session ending with `unsupported_ops=0 inconsistency=0`. |
-| 4c-3 | Remaining gate matches (template instances, lambda names) and doc updates | Not started. |
-
-See [N2_DESIGN.md stage plan and verification](N2_DESIGN.md#stage-plan-and-verification) and the Stage 4c design section for the reasons (the gate matches mangled symbol names by substring, so type names in signatures and classes such as `KPageTableManager` count).
+- `src/core/CMakeLists.txt`: `k_page_table_base.cpp` and `k_memory_block_manager.cpp` are compiled only when `SUYU_NO_JIT` is off.
+- `k_absent_legacy_table.h`: `KAbsentLegacyTable` is `KLegacyTable` (the type of `KProcessPageTable::m_page_table`) in the no-JIT build; each operation logs its name at critical level, is counted, and fails. `KProcessPageTable::Initialize` fails with a counted `Unsupported` for a non-39-bit address space or `SUYU_NATIVE_MEM=0` in that build.
+- `KPageTableManager`, `KPageTableSlabHeap`, and the `KSystemResource`/`KSecureSystemResource`/`KernelCore` members and `KProcess::GetPageTableManager()` exist only in the JIT build; in no-JIT the dynamic page manager keeps the pages that would have gone to the page table heap.
+- Log text changes you will see in a run: no-JIT start-up line `native_mem: legacy page table not built in this build` (JIT keeps `native_mem: KPageTable not constructed`); the final line is `native_mem final unsupported_ops=N inconsistency=N optimized_memory_failures=N` where `unsupported_ops` includes the optimized-memory refusals and stand-in calls.
+- Tests: `smoke_absent_legacy_table_unit` plus five header mutants in `tests/recompiler_smoke` (passes; mutants exit 1; the full `run.py` has not been run). Verification evidence is in the dev20 CHANGELOG section: JIT `/EP` comparison with 12 intended groups, Code reviewer's three P2 findings fixed.
 
 ### N2 limits to remember
 
 - Stage 2 shadow limits remain: the extra Locked/Uncached writer is unidentified, and relaxed physical-op comparisons are state-only ([Stage 2 results](N2_DESIGN.md#stage-2-results)).
 - Unsupported IPC map-alias, `MapCodeMemory`, unsafe/insecure operations, and other documented kernel divergences remain ([Stage 3b-3 results](N2_DESIGN.md#stage-3b-3-results)).
-- Full `tests/recompiler_smoke/run.py` and a real smoke CMake configure have never run; no performance parity is claimed.
-- Native memory is default-on; `SUYU_NATIVE_MEM=0` is the fallback/comparison run, and non-39-bit spaces fall back per process until 4c-2.
+- Full `tests/recompiler_smoke/run.py` and a real smoke CMake configure of the whole suite have never run; no performance parity is claimed.
+- Native memory is default-on. In the JIT build `SUYU_NATIVE_MEM=0` and non-39-bit spaces use the legacy `KPageTable`; in the no-JIT build they fail fast (counted).
 - The physical pool's concurrent-allocation lock is covered by review only; its stress test passed even with the mutex removed.
 - `GetSpaceInfo` lacks the `HAS_NCE` 256 GiB Map39Bit limit and must be fixed before any NCE build ([Stage 4b-1 results](N2_DESIGN.md#stage-4b-1-results)).
-- The fallback heap-allocated `KPageTable` is not freed because the KProcess slab runs no destructor; 4c-2 removes it from the no-JIT build, the JIT build keeps it ([Stage 4b-3 results](N2_DESIGN.md#stage-4b-3-results)).
-- The `unsupported_ops` and `inconsistency` values of the native model have never been observed in a real session since dev12; optimized-memory use by PLA is unknown.
-
-## Handoff
-
-### Where we are
-
-N2 Stages 0-4b are done. Stage 4c-1a and 4c-1b are committed; 4c-1c, 4c-2 and 4c-3 are designed but not started. dev15 (JIT, JIT with `SUYU_NATIVE_MEM=0`, no-JIT AOT) showed the start-up lines `native_mem enabled` and `native_mem: KPageTable not constructed`, played 250-350 s without a crash, and the no-JIT gate read `kernel_memory` 128 (earlier notes said 127 and 122; the cause is not investigated). The no-JIT host is the AOT acceptance target; use the JIT host for comparison runs.
-
-### What the work looks like now
-
-N2 replaces the kernel memory model in the native 39-bit path while retaining an explicit fallback in the JIT build. The next work is mechanical: move names out of `KPageTableBase` (4c-1c), then remove the legacy sources from the no-JIT build (4c-2). Each part is its own dev commit with a unit test or comparison, host builds, the user's commit, and where it changes runtime behavior the user's PLA session.
+- The `unsupported_ops`, `inconsistency`, and `optimized_memory_failures` values of the native model have never been observed in a real session since dev12; whether PLA uses optimized process memory is unknown (the no-JIT run decides).
+- The gate result is for the host executable. An exported `suyu-cmd-static.exe` (all recompiled modules linked in) has not been measured since dev15 (kernel_memory 128 then).
+- Headers still include each other: `k_native_address_space.h` includes `k_page_table_base.h`, and about 16 source files include `k_page_table.h`. Declarations alone create no symbols, so the gate passes, but a no-JIT build still parses them.
 
 ## Immediate next action
 
-1. Check `git status` and `git log -5`; the user commits documentation edits. After any commit, reconfigure and rebuild both host trees one at a time and check `GIT_REV` in `msvc-release\src\common\scm_rev.cpp` and `msvc-release-nojit\src\common\scm_rev.cpp`.
-2. Decide with the user how to treat the missing dev16 line (see Open items): either add one diagnostic log line at the start of `ShutdownMainProcess` to tell "log tail lost" from "call not reached" (needs a commit and a full export), or keep it open and look again when 4c-2 adds the optimized-memory fail-fast counter.
-3. 4c-1c needs the user's go. Before the first edit: take `/EP` baselines of both trees (procedure below), re-take the no-JIT gate baseline on a fresh launcher, and write the target files, change, verification and completion condition.
-4. Optional cleanups: full `tests/recompiler_smoke/run.py` with `CPM_SOURCE_CACHE`, a real smoke CMake configure, `aot_cache_outcome` on the next export, unresolved GOT/PLT symbols, title confirmation, the unused `k_address_space_info.h` include, the `native_physical_pool.h` unit-suffix nit, `CMakeLists.txt` source order after the `k_physical_memory` rename, three comments naming `KMemoryManager` in `native_memory` headers and `native_pool_set_unit.cpp`, and a Code reviewer pass for 4c-1a and 4c-1b (not done).
+1. Check `git status` and `git log -5`; the user commits documentation edits. After any commit, reconfigure and rebuild both host trees one at a time and check `GIT_REV` in `msvc-release\src\common\scm_rev.cpp` and `msvc-release-nojit\src\common\scm_rev.cpp` (currently stale, see Status). JIT: `rebuild-suyu.bat`; no-JIT: `configure-msvc-release-nojit.bat` then `rebuild-suyu-nojit.bat`. The helper's compiler output is in `D:\HisuiWakeBuild\rebuild-suyu-nojit.log` (or `rebuild-suyu.log`), not in the redirected console log.
+2. The user-side validation of dev20 (needed before 4c is called validated): export a no-JIT launcher from the rebuilt no-JIT tree, run PLA with it (see procedures), copy the log, and look for: `native_mem enabled`, `native_mem: legacy page table not built in this build`, no `legacy page table operation ... is unavailable` critical lines, and `native_mem final unsupported_ops=0 inconsistency=0 optimized_memory_failures=0` (the final line may still be lost on an X-button exit, see Open items). Then run `structural_gate.py ... --require-absent N2` on the exported `suyu-cmd-static.exe` with its PDB and record the count (expected 0 for kernel_memory; the dev15 baseline was 128). A JIT PLA run (start-up lines, no crash) is also still owed for dev18-dev20.
+3. If the final line is still missing, decide with the user: add one diagnostic line at the start of `ShutdownMainProcess` (needs a commit and a full export) or keep it open.
+4. 4c-3 (needs the user's go): remaining cleanups only if they matter: the stale comments naming `KPageTableBase`/`KMemoryManager` in `native_memory` headers and `k_native_address_space.h`, the `k_page_table_base.h` include in `k_native_address_space.h` and the `k_page_table.h` includes, `N2_DESIGN.md` Stage 4c section (still says "implementation not started"; add a 4c results section), and a Code reviewer pass for 4c-1a and 4c-1b (never done).
+5. Stage 5 follows; it needs the user's go-ahead and a design read of [N2_DESIGN.md](N2_DESIGN.md) and [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md).
+6. Optional: full `tests/recompiler_smoke/run.py` (needs `CPM_SOURCE_CACHE=D:\HisuiWakeBuild\cpm`; it now also needs the `fmt` headers from that cache), `aot_cache_outcome` on the next export, unresolved GOT/PLT symbols, title confirmation, the `native_physical_pool.h` unit-suffix nit, `CMakeLists.txt` source order after the `k_physical_memory` rename.
 
 ## Open items
-- **dev16 unverified:** `native_mem final ...` did not appear in the JIT `suyu-cmd` run after the X-button exit (log ends with `BufferQueue has been abandoned` at 245.7 s although `suyu-cmd` calls `ShutdownMainProcess()` afterwards). Either the log tail is lost at exit or the new call in `KernelCore::Impl::Shutdown` is not reached; not determined.
+- **dev16 unverified:** `native_mem final ...` did not appear in the JIT `suyu-cmd` run after the X-button exit (log ends with `BufferQueue has been abandoned` at 245.7 s although `suyu-cmd` calls `ShutdownMainProcess()` afterwards). Either the log tail is lost at exit or the call in `KernelCore::Impl::Shutdown` is not reached; not determined.
 - Qt combo-index bug: `src/suyu/configuration/configure_audio.cpp:72` maps Libretro index 4 to value 5; value 4 is Null-sink.
 - `research/tests` failures and tracked `__pycache__`/`.pyc`, `src/suyu/game_card.cpp.bak`, and the `cpp-lint.sh` tab issue remain.
 - Bad Image dialog cause and `recomp_bundle.cpp:305` error-mode handling remain unresolved.
@@ -85,16 +78,18 @@ Keep diagnostics execution-neutral when off, exact-0 default-on semantics, ABI/r
 ## Lessons
 
 - New core files include `common/logging.h`; `run.py` needs `CPM_SOURCE_CACHE`.
-- Preserve file bytes and line endings in scripted edits; verify with `git ls-files --eol` and byte counts. `CHANGELOG.md` is CRLF in the working copy; edit it with a script that keeps CRLF.
-- Run vcvars through PowerShell using `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat`; use absolute `cmd.exe /c` helper paths and do not build both trees concurrently.
-- `rebuild-suyu.bat` (JIT) reconfigures and so refreshes `GIT_REV`; `rebuild-suyu-nojit.bat` only builds and can report "no work to do" with a stale hash. After a commit run `configure-msvc-release-nojit.bat` first, then the rebuild, and check `GIT_REV`. A reconfigure with a changed source list or `SUYU_NO_JIT` can cause a full no-JIT rebuild of about 1,700 steps (over an hour in session 49).
+- Preserve file bytes and line endings in scripted edits; verify with `git ls-files --eol` and byte counts (Git Bash `grep -c $'\r'` can show 0 for CRLF files; count with Python). `CHANGELOG.md` is CRLF in the working copy, the smoke `CMakeLists.txt` is CRLF; edit them with scripts that keep their endings.
+- Write edit scripts with the Write tool; a Bash heredoc can mangle `\\` and `\n` (a path ending in a backslash broke a script in session 50). Use forward slashes in script paths.
+- Run vcvars through PowerShell using `C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat`; the `vswhere` message it prints is harmless. Use absolute `cmd.exe /c` helper paths and do not build both trees concurrently.
+- `rebuild-suyu.bat` (JIT) reconfigures and so refreshes `GIT_REV`; `rebuild-suyu-nojit.bat` only builds and can report "no work to do" with a stale hash. After a commit run `configure-msvc-release-nojit.bat` first, then the rebuild, and check `GIT_REV`. When a rebuild helper stops without "Build succeeded.", read the helper's own log file for the compiler errors. A header change in `core/hle/kernel` rebuilds about 10 minutes of units per tree; a source-list change in `core` rebuilds more.
+- Take the `/EP` baseline **before** the first source edit (4c-1c was edited first, so it has none). `cmp.py` over about 1,700 units takes about 15 minutes per tree; run `pp.py` and `cmp.py` as separate background commands.
+- For a type-level removal the linker is the checklist: drop the sources, guard the uses with `#ifdef SUYU_NO_JIT`, and let link errors and `llvm-pdbutil dump -publics` on the built exe list what remains. The gate counts mangled names and string-literal symbols (`??_C@...KPageTable...`), so a log string naming a removed class also counts.
 - A foreground PowerShell command that outlasts 10 minutes moves to the background; poll with a wait loop on `Get-Process ninja` and read the log tail instead of starting a second build.
-- `Start-Process -ArgumentList` splits a path with spaces; quote it inside the argument (`'"D:\.Developments\PokeRecompile Project\HisuiWake"'`).
-- `cmp.py` over about 1,700 translation units takes about 15 minutes per tree and a background command stops at 30 minutes; run the two trees as separate commands.
+- `Start-Process -ArgumentList` splits a path with spaces; quote it inside the argument.
 - Copy measured logs before the next Qt start/export, and verify an executable was built before judging a test result.
 - A mutant must fail fast through an intended check; run sweeps from the CMake mutant list and clean scratch output afterward.
-- A replayed old Orca delivery can answer a new `check --wait`; inspect its subject, acknowledge it, and wait again. Orca "You have 1 orchestration message" notices are heartbeats.
-- Session 49 edited Markdown directly instead of through the Orca md Implementer; the user did not object, but CLAUDE.md still names the md Implementer as the owner of Markdown batches.
+- Orca: a replayed old delivery can answer a new `check --wait` (it happened in 4c-2; the subject showed the old review). Inspect the subject, ack the delivery id with `--ack`, and wait again. "You have 1 orchestration message" notices are heartbeats: answer in one line and run no tool. Release each worker with `worker-release --dispatch`.
+- Sessions 49 and 50 edited Markdown directly instead of through the Orca md Implementer; the user did not object, but CLAUDE.md still names the md Implementer as the owner of Markdown batches.
 
 ## How to proceed
 Read the start checklist, verify evidence, and record only verified facts. Per stage: plan, implement with a unit test or a comparison and header mutants where one applies, Code reviewer, host builds, a Markdown batch (WORK_PLAN, CHANGELOG, CODEBASE_INDEX), a Japanese report with the file list and a commit message ending in `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`, then wait for the user's commit.
@@ -114,9 +109,9 @@ A stage that changes runtime behaviour also needs the user's PLA session before 
 - Run host reconfigure and build as separate processes; chaining two `vcvars64` calls in one `.bat` stopped silently. After an export, run `rebuild-suyu.bat`.
 
 ## Working rules
-- Per-commit `devN` CHANGELOG entries use `v0.0.3-devN` from dev1 unless the user declares a normal commit; the user makes all commits. The next commit is `v0.0.3-dev20` (4c-2) and then `v0.0.3-dev21`.
+- Per-commit `devN` CHANGELOG entries use `v0.0.3-devN` unless the user declares a normal commit; the user makes all commits. The next commit is `v0.0.3-dev21`.
 - The one-stage-at-a-time report/file-list/commit-message/wait rule applies until the user relaxes it.
 - The user moved `IMGUI_OVERLAY.md` and `CPU_RECOMPILER.md` into `docs/Aevora/RECOMPILE_DETAIL/`; keep new detail documents there and link them from CODEBASE_INDEX.md.
 
 ## Context and token practice
-Start a new session or `/compact` at stage boundaries/before breaks; read with offset/limit, print only extracted worker fields, and use one blocking `check --wait`. Read `N2_DESIGN.md` by section (the Stage 4c design section) rather than whole.
+Start a new session or `/compact` at stage boundaries/before breaks; read with offset/limit, print only extracted worker fields, and use one blocking `check --wait`. Read `N2_DESIGN.md` by section; this file plus the CLAUDE.md "Resuming work" paragraph are the only required reading to resume.

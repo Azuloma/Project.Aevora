@@ -7,17 +7,8 @@
 #include <memory>
 #include <string>
 
-#ifdef SUYU_CMD_STATIC_RECOMP
-#include <cstdint>
-#include <filesystem>
-#ifdef _WIN32
-#include <windows.h>
-#endif
-#endif
-
 #include <fmt/format.h>
 
-#include "common/fs/fs_util.h"
 #include "common/logging/log.h"
 #include "common/scm_rev.h"
 #include "suyu_cmd/emu_window/emu_window_sdl2_vk.h"
@@ -41,23 +32,8 @@ EmuWindow_SDL2_VK::EmuWindow_SDL2_VK(InputCommon::InputSubsystem* input_subsyste
         InstallOverlayInventory();
     }
 #ifdef SUYU_CMD_STATIC_RECOMP
-    // Exports are renamed after the game at packaging time; reuse that name as the title.
-    const std::string window_title = [] {
-        std::filesystem::path exe;
-#if defined(_WIN32)
-        wchar_t exe_w[MAX_PATH]{};
-        GetModuleFileNameW(nullptr, exe_w, MAX_PATH);
-        exe = exe_w;
-#else
-        std::error_code ec;
-        exe = std::filesystem::read_symlink("/proc/self/exe", ec);
-        if (ec) {
-            exe.clear();
-        }
-#endif
-        // A generic name beats an empty title; path::string() throws on unmappable ANSI text.
-        return exe.empty() ? std::string{"suyu"} : Common::FS::PathToUTF8String(exe.stem());
-    }();
+    // Replaced by the status title once the game runs.
+    const std::string window_title = "In game";
 #else
     const std::string window_title = fmt::format("suyu {} | {}-{} (Vulkan)", Common::g_build_name,
                                                  Common::g_scm_branch, Common::g_scm_desc);

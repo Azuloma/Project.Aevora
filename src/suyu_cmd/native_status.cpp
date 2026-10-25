@@ -15,6 +15,7 @@
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/am/am_types.h"
+#include "common/scm_rev.h"
 #include "common/settings.h"
 #include "suyu_cmd/native_status.h"
 
@@ -199,6 +200,24 @@ bool TryGetNativeStatusSnapshot(NativeStatusSnapshot& out) {
         out.perf_available = false;
     }
     return true;
+}
+
+std::string FormatRecompBuildTag(const std::string& mode) {
+    constexpr std::size_t kCommitDigits = 9;
+#ifdef SUYU_RECOMP_CLANG_VERSION
+    const std::string compiler = std::string{"Clang "} + SUYU_RECOMP_CLANG_VERSION;
+#else
+    const std::string compiler = Common::g_compiler_id;
+#endif
+#if defined(_WIN32)
+    constexpr const char* platform = "Windows x64";
+#elif defined(__linux__)
+    constexpr const char* platform = "Linux x64";
+#else
+    constexpr const char* platform = "Unknown platform";
+#endif
+    return "Project Aevora " + std::string{Common::g_scm_rev}.substr(0, kCommitDigits) + " (" +
+           mode + ", " + compiler + ", " + platform + ")";
 }
 
 } // namespace SuyuCmd

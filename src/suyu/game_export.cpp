@@ -146,51 +146,6 @@ static std::optional<size_t> ReadPositiveSizeFromEnv(const char* name) {
     return static_cast<size_t>(value);
 }
 
-#ifdef _WIN32
-// RT_ICON resources contain a DIB, not a PNG file. Build a 32-bit,
-// bottom-up DIB with an opaque alpha mask so Explorer and the shell can read
-// the icon after it has been attached to the copied launcher executable.
-static QByteArray MakeIconDib(const QPixmap& pixmap) {
-    const QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888);
-    if (image.isNull() || image.width() != image.height()) {
-        return {};
-    }
-
-    const int width = image.width();
-    const int height = image.height();
-    const qsizetype xor_size = static_cast<qsizetype>(width) * height * 4;
-    const qsizetype and_stride = ((width + 31) / 32) * 4;
-    const qsizetype and_size = and_stride * height;
-    QByteArray dib(static_cast<qsizetype>(sizeof(BITMAPINFOHEADER)) + xor_size + and_size,
-                   Qt::Uninitialized);
-
-    BITMAPINFOHEADER header{};
-    header.biSize = sizeof(BITMAPINFOHEADER);
-    header.biWidth = width;
-    header.biHeight = height * 2;
-    header.biPlanes = 1;
-    header.biBitCount = 32;
-    header.biCompression = BI_RGB;
-    header.biSizeImage = static_cast<DWORD>(xor_size + and_size);
-    std::memcpy(dib.data(), &header, sizeof(header));
-
-    auto* pixels = reinterpret_cast<BYTE*>(dib.data() + sizeof(header));
-    for (int y = 0; y < height; ++y) {
-        const auto* source = image.constScanLine(height - 1 - y);
-        auto* destination = pixels + static_cast<qsizetype>(y) * width * 4;
-        for (int x = 0; x < width; ++x) {
-            const auto* rgba = source + x * 4;
-            destination[x * 4 + 0] = rgba[2];
-            destination[x * 4 + 1] = rgba[1];
-            destination[x * 4 + 2] = rgba[0];
-            destination[x * 4 + 3] = rgba[3];
-        }
-    }
-    // A zeroed AND mask means every pixel is taken from the 32-bit XOR image.
-    return dib;
-}
-#endif
-
 static bool CopyFileReplacingExisting(const QString& src, const QString& dst) {
     const QFileInfo src_info(src);
     if (!src_info.exists() || !src_info.isFile()) {
@@ -3123,6 +3078,13 @@ static QString FindClangCl(QString& searched) {
     return QDir::fromNativeSeparators(QStandardPaths::findExecutable(QStringLiteral("clang-cl")));
 }
 
+// Pulls "19.1.5" out of the first line of `clang-cl --version`; empty when absent.
+static QString ClangSemanticVersion(const QString& version_line) {
+    static const QRegularExpression kVersion(QStringLiteral("version (\\d+(\\.\\d+)*)"));
+    const auto match = kVersion.match(version_line);
+    return match.hasMatch() ? match.captured(1) : QString{};
+}
+
 // Compiles a small C file with the export's own environment (vcvars64's INCLUDE
 // is what finds <stdint.h>), so a broken or non-x64 clang-cl is caught here
 // rather than partway through a module build.
@@ -5806,6 +5768,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                                      QDir::fromNativeSeparators(recomp_root),
                                  QStringLiteral("-DSUYU_RECOMP_HYBRID=") +
                                      (is_hybrid ? QStringLiteral("ON") : QStringLiteral("OFF")),
+                                 QStringLiteral("-DSUYU_RECOMP_CLANG_VERSION=") +
+                                     ClangSemanticVersion(clang_version),
                                  QStringLiteral("-DSUYU_CMD_RECOMP_PREBUILT_DIR=") + clang_dir +
                                      QStringLiteral("/lib")} + kit_config_args,
                                 &log) != 0) {
@@ -5907,6 +5871,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                                           build_tree, QStringLiteral("-DSUYU_CMD_RECOMP_DIR=") +
                                                           QDir::fromNativeSeparators(recomp_root),
                                           QStringLiteral("-DSUYU_RECOMP_HYBRID=ON"),
+                                          QStringLiteral("-DSUYU_RECOMP_CLANG_VERSION=") +
+                                              ClangSemanticVersion(clang_version),
                                           QStringLiteral("-DSUYU_CMD_RECOMP_PREBUILT_DIR=") +
                                               clang_dir + QStringLiteral("/lib")} + kit_config_args,
                                          &log) == 0;
@@ -5972,6 +5938,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                          QDir::fromNativeSeparators(recomp_root),
                      QStringLiteral("-DSUYU_RECOMP_HYBRID=") +
                          (is_hybrid ? QStringLiteral("ON") : QStringLiteral("OFF")),
+                     QStringLiteral("-DSUYU_RECOMP_CLANG_VERSION="),
                      QStringLiteral("-DSUYU_CMD_RECOMP_PREBUILT_DIR=")} + kit_config_args,
                     &conf_log);
                 if (conf_rc == 0) {
@@ -6097,6 +6064,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                              QDir::fromNativeSeparators(recomp_root),
                          QStringLiteral("-DSUYU_RECOMP_HYBRID=") +
                              (is_hybrid ? QStringLiteral("ON") : QStringLiteral("OFF")),
+                         QStringLiteral("-DSUYU_RECOMP_CLANG_VERSION="),
                          QStringLiteral("-DSUYU_CMD_RECOMP_PREBUILT_DIR=")} + kit_config_args,
                         &reconf_log);
                     if (conf_rc != 0) {
@@ -6689,43 +6657,7 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
                 return fail(QStringLiteral("could not copy the export launcher"));
             }
 
-            // Embed the game's icon into the launcher exe via Windows resource update API.
-            if (!game_icon_.isNull()) {
-#ifdef _WIN32
-                // Scale icon to 256x256 for best Explorer display quality
-                const QPixmap icon256 = game_icon_.scaled(256, 256,
-                    Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation)
-                    .copy(0, 0, 256, 256);
-                const QByteArray icon_dib = MakeIconDib(icon256);
-                if (!icon_dib.isEmpty()) {
-#pragma pack(push,1)
-                    struct GrpEntry { BYTE w,h,cc,res; WORD pl,bpp; DWORD sz; WORD id; };
-                    struct GrpDir  { WORD reserved,type,count; GrpEntry e[1]; };
-#pragma pack(pop)
-                    GrpDir grp{};
-                    grp.type=1; grp.count=1;
-                    // w=h=0 signals 256x256 in ICO/GRPICONDIR convention
-                    grp.e[0].w=0; grp.e[0].h=0;
-                    grp.e[0].pl=1; grp.e[0].bpp=32;
-                    grp.e[0].sz=(DWORD)icon_dib.size(); grp.e[0].id=1;
-                    const std::wstring dstW = launcher_dst.toStdWString();
-                    // FALSE = keep existing resources (manifests, version info, etc.)
-                    HANDLE h = BeginUpdateResourceW(dstW.c_str(), FALSE);
-                    if (h) {
-                        const bool icon_ok = UpdateResourceW(h, RT_ICON, MAKEINTRESOURCEW(1),
-                            MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
-                            (LPVOID)icon_dib.data(), (DWORD)icon_dib.size()) != FALSE;
-                        const bool group_ok = UpdateResourceW(h, RT_GROUP_ICON, MAKEINTRESOURCEW(1),
-                            MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL),
-                            (LPVOID)&grp, (DWORD)(sizeof(WORD)*3 + sizeof(GrpEntry)));
-                        if (!icon_ok || !group_ok || !EndUpdateResourceW(h, FALSE)) {
-                            LOG_WARNING(Frontend, "Failed to embed game icon in {}",
-                                        launcher_dst.toStdString());
-                        }
-                    }
-                }
-#endif
-            }
+            // The launcher keeps the Aevora icon from its own resources (suyu.rc).
 
             for (const char* dll : kExportRuntimeDlls) {
                 const QString src = bin_dir + QLatin1Char('/') + QLatin1String(dll);

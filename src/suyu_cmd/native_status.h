@@ -116,8 +116,27 @@ inline std::string GameBackendQualifier(const NativeStatusSnapshot& s) {
     return {};
 }
 
+/// "Project Aevora <commit> (<mode>, <compiler>, <platform>)" for recompiled launchers.
+std::string FormatRecompBuildTag(const std::string& mode);
+
+inline std::string RecompModeLabel(const NativeStatusSnapshot& s) {
+    switch (ClassifyGameBackend(s)) {
+    case NativeBackendClass::StrictAot:
+        return s.jit_available ? "Static AOT JIT-capable" : "Static AOT no-JIT";
+    case NativeBackendClass::HybridAot:
+        return "Hybrid JIT+AOT";
+    case NativeBackendClass::DynarmicJit:
+        return "Dynarmic JIT";
+    default:
+        return NativeBackendName(ClassifyGameBackend(s));
+    }
+}
+
 inline std::string FormatNativeTitle(const NativeStatusSnapshot& s) {
     std::string out;
+#ifdef SUYU_CMD_STATIC_RECOMP
+    out = "In game - " + FormatRecompBuildTag(RecompModeLabel(s));
+#else
     out += s.game_name.empty() ? std::string{"Game"} : s.game_name;
     if (!s.display_version.empty()) {
         out += " ";
@@ -126,6 +145,7 @@ inline std::string FormatNativeTitle(const NativeStatusSnapshot& s) {
     out += " | ";
     out += NativeBackendName(ClassifyGameBackend(s));
     out += GameBackendQualifier(s);
+#endif
 
     if (!s.perf_available) {
         out += s.speed_meaningful ? " | FPS: -- | speed: --" : " | FPS: --";

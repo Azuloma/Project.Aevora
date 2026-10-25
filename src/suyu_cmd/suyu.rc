@@ -7,13 +7,13 @@
 // Icon
 //
 
-// Numeric id 1, not a named resource. A PE resource directory lists named
-// entries before numeric ones, so a name here would always win the shell's
-// "first icon group" pick - which is why a game export whose own icon is
-// written as id 1 (see UpdateResourceW in suyu/game_export.cpp) still showed
-// the suyu logo in Explorer and the taskbar. Same id means the export
-// replaces this outright instead of sitting behind it.
+// Numeric id 1: named entries sort first and would win the shell's icon pick.
+// Static launchers carry the Aevora game icon; SetWindowIcon reads this id.
+#ifdef SUYU_CMD_STATIC_RECOMP
+1                       ICON                    "../../dist/aevora_game.ico"
+#else
 1                       ICON                    "../../dist/suyu.ico"
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

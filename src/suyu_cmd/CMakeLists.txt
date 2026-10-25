@@ -286,6 +286,10 @@ if (SUYU_CMD OR YUZU_CMD)
             add_executable(suyu-cmd-static ${SUYU_CMD_SOURCES}
                            "${SUYU_CMD_RECOMP_DIR}/recomp_registration.c")
             target_compile_definitions(suyu-cmd-static PRIVATE SUYU_CMD_STATIC_RECOMP=1)
+            if (SUYU_RECOMP_CLANG_VERSION)
+                target_compile_definitions(suyu-cmd-static PRIVATE
+                                           SUYU_RECOMP_CLANG_VERSION="${SUYU_RECOMP_CLANG_VERSION}")
+            endif()
             if (_recomp_topology_v1)
                 # recomp_registration.c is a registry v1 (carries ABI/features per
                 # entry), so the v4 handshake definitions below do not apply.
