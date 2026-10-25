@@ -136,7 +136,7 @@ Sampling and the access-sites diagnostic perturb timing. Compare AOT and JIT in 
 
 - AOT performance is below the JIT; do not claim parity.
 - The full `tests/recompiler_smoke/run.py` suite and `tests/exclusive_access` have not been re-run since the latest N2 work, and `StandaloneExclusiveMonitor` has no ThreadSanitizer stress coverage.
-- The recorded compiler name in reports is wrong (`last_recomp_compiler` records `O2`).
+- The recorded compiler is correct (verified 2026-10-25: `last_recomp_compiler` holds the compiler version, path, and flag); the earlier "records `O2`" defect is gone. The compiler is recorded but not compared on cache reuse (see [EX01_PLAN.md](RECOMPILER_PLAN/EX01_PLAN.md) finding F2).
 - Eight unresolved GOT/PLT symbol errors and one `UnpinHandle: Pin count imbalance` warning have not been compared with a JIT log.
 - Bare-PC fatal logs in the recompiler and guard paths are unnamed by module.
 - The no-JIT export build kit was not packaged, because it cannot provide a usable Hybrid mode.

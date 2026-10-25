@@ -279,6 +279,8 @@ add_executable(suyu
     game_export.h
     aot_export_cache.cpp
     aot_export_cache.h
+    export_timing.h
+    export_timing_sampler.h
     wikipedia_cover.cpp
     wikipedia_cover.h
     setup_dialog.cpp

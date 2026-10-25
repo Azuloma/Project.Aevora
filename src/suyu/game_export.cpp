@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "suyu/aot_export_cache.h"
+#include "suyu/export_timing.h"
+#include "suyu/export_timing_sampler.h"
 #include "suyu/game_export.h"
 #include "suyu/steam_integration.h"
 #include "suyu/wikipedia_cover.h"
@@ -59,6 +61,7 @@
 #include <chrono>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <span>
 #include <vector>
 
@@ -3090,6 +3093,7 @@ static QString ClangSemanticVersion(const QString& version_line) {
 // rather than partway through a module build.
 static bool ClangClSelfTest(const QString& clang, const QProcessEnvironment& env,
                             const QString& dir, QString& version, QString& error) {
+    const ExportTiming::StageScope self_test_stage{"clang_self_test"};
     QDir(dir).removeRecursively();
     QDir().mkpath(dir);
     const QString src = dir + QStringLiteral("/selftest.c");
@@ -3531,6 +3535,52 @@ static std::string ComputeBundleId(const BundleIdInputs& inputs) {
     return QCryptographicHash::hash(text, QCryptographicHash::Sha256).toHex().toStdString();
 }
 
+// Bytes under a file or folder; unreadable entries count as zero. Used for EX01 timing sizes.
+static std::uint64_t PathSizeBytes(const std::filesystem::path& path) {
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(path, ec)) {
+        return std::filesystem::file_size(path, ec);
+    }
+    std::uint64_t total_bytes = 0;
+    for (std::filesystem::recursive_directory_iterator it{path, ec}, end; !ec && it != end;
+         it.increment(ec)) {
+        std::error_code entry_ec;
+        if (it->is_regular_file(entry_ec)) {
+            total_bytes += it->file_size(entry_ec);
+        }
+    }
+    return total_bytes;
+}
+
+// Records how many generated translation units a module has and how large they are.
+static void RecordUnitStats(const QString& module, const std::filesystem::path& source_dir) {
+    if (!ExportTiming::Global().Enabled()) {
+        return;
+    }
+    std::uint64_t count = 0;
+    std::uint64_t bytes_total = 0;
+    std::uint64_t bytes_max = 0;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it{source_dir, ec}, end; !ec && it != end;
+         it.increment(ec)) {
+        std::error_code entry_ec;
+        if (it->path().extension() != ".c" || !it->is_regular_file(entry_ec)) {
+            continue;
+        }
+        const std::uint64_t unit_bytes = it->file_size(entry_ec);
+        ++count;
+        bytes_total += unit_bytes;
+        bytes_max = std::max(bytes_max, unit_bytes);
+    }
+    ExportTiming::Global().AddUnits(module.toStdString(), count, bytes_total, bytes_max);
+}
+
+static void CountCopiedBytes(const std::filesystem::path& destination) {
+    if (ExportTiming::Global().Enabled()) {
+        ExportTiming::Global().AddCopiedBytes(PathSizeBytes(destination));
+    }
+}
+
 // SHA-256 (lower-case hex) and length of a file.
 static bool HashFileSha256(const QString& path, QString* sha256_hex, qint64* size_bytes) {
     QFile file(path);
@@ -3543,6 +3593,7 @@ static bool HashFileSha256(const QString& path, QString* sha256_hex, qint64* siz
     }
     *sha256_hex = QString::fromLatin1(hash.result().toHex());
     *size_bytes = file.size();
+    ExportTiming::Global().AddHashedBytes(static_cast<std::uint64_t>(*size_bytes));
     return true;
 }
 
@@ -3893,6 +3944,7 @@ static bool CopyCacheArtifacts(const std::filesystem::path& from_root,
                               QString::fromStdString(ec.message()));
             return false;
         }
+        CountCopiedBytes(to);
         return true;
     };
     return copy_item(Cache::kLauncherDirName, true) &&
@@ -3966,10 +4018,11 @@ void GameExportDialog::PublishAotCacheEntry(
     last_aot_cache_publish = QStringLiteral("published");
     std::string path_error;
     const auto entry_path = Cache::EntryPath(cache_root, key, &path_error);
+    const auto entry_size_bytes = Cache::EntrySizeBytes(*entry_path);
+    ExportTiming::Global().SetSize("entry", entry_size_bytes);
     LOG_INFO(Frontend, "AOT cache: published {} ({:.2f} GiB)",
              Common::FS::PathToUTF8String(*entry_path),
-             static_cast<double>(Cache::EntrySizeBytes(*entry_path)) /
-                 (1024.0 * 1024.0 * 1024.0));
+             static_cast<double>(entry_size_bytes) / (1024.0 * 1024.0 * 1024.0));
 } catch (const std::exception& exception) {
     // The standard library throws on a path it cannot convert or an allocation failure; the
     // cache is an optimisation and must never take down a finished export. A half-built
@@ -4118,6 +4171,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
     }
     const QString rom_path = rom_path_edit->text();
     const bool packaged_rom = QFileInfo(rom_path).isFile();
+    ExportTiming::StageScope input_hash_stage{"input_hash"};
     const auto source_exefs = packaged_rom
                                   ? ExtractExeFsFromRom(rom_path.toStdString(), system_)
                                   : FileSys::VirtualDir{};
@@ -4130,6 +4184,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
         LOG_ERROR(Frontend, "Could not fingerprint the effective ExeFS for AOT export");
         return {};
     }
+    input_hash_stage.End();
+    ExportTiming::StageScope option_stage{"option_resolve"};
 
     // blockmaps/, ir/ and code/ are debugging material for a codegen stage that
     // no longer exists: nothing in suyu or in the generated project reads any of
@@ -4329,6 +4385,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
     // The persistent cache holds the finished build of an earlier export of this key. When its
     // producer and artifacts are intact it is what the check below reads (`reuse_dir`), and
     // only a full match copies it into this export's cache directory.
+    option_stage.End();
+    ExportTiming::StageScope cache_lookup_stage{"cache_lookup"};
     QString reuse_dir = cache_dir;
     std::optional<AotCacheTarget> cache_target;
     std::unique_ptr<suyu::aot_cache::EntryLock> cache_lock;
@@ -4555,15 +4613,19 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
         }
     }
     cache_lock.reset();
+    cache_lookup_stage.End();
 
     // A changed input may have removed modules. Rebuild the owned cache from
     // an empty tree so no generated C or launcher survives from that input.
-    if (QDir(cache_dir).exists() && !QDir(cache_dir).removeRecursively()) {
-        LOG_ERROR(Frontend, "Could not clear stale AOT cache at {}", cache_dir.toStdString());
-        return {};
-    }
-    if (!QDir().mkpath(cache_dir)) {
-        return {};
+    {
+        const ExportTiming::StageScope wipe_stage{"worktree_wipe"};
+        if (QDir(cache_dir).exists() && !QDir(cache_dir).removeRecursively()) {
+            LOG_ERROR(Frontend, "Could not clear stale AOT cache at {}", cache_dir.toStdString());
+            return {};
+        }
+        if (!QDir().mkpath(cache_dir)) {
+            return {};
+        }
     }
     if (dump_debug_artifacts) {
         QDir().mkpath(blockmap_dir);
@@ -4572,6 +4634,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
     }
 
     // Collect NSO files to analyze — either from VFS (ROM containers) or from extracted ExeFS
+    ExportTiming::StageScope nso_analysis_stage{"nso_analysis"};
     std::vector<NsoAnalysisResult> module_results;
     bool used_vfs = false;
 
@@ -4685,6 +4748,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
         }
     }
 
+    nso_analysis_stage.End();
     if (module_results.empty() && !split_main) {
         return QString();
     }
@@ -4803,6 +4867,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
     suyu::recomp::ChainStartImageProjection main_dll_projection;
     suyu::recomp::ChainStartImageProjection launcher_projection;
 
+    ExportTiming::StageScope lift_stage{"lift_emit"};
     for (const auto& mod : module_results) {
         if (mod.text_bytes.empty()) {
             if (split_main) {
@@ -4906,6 +4971,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                 mod.entry_vaddr, game_name.toStdString(), &exported_roots,
                 unit_limits.source_bytes, unit_limits.blocks);
             emit_ok = true;
+            RecordUnitStats(mod.name, ToFsPath(mod_dir + QStringLiteral("/src")));
 
             // Report coverage, not just volume. Block and instruction counts say
             // how much code was walked; only this says how much of it the decoder
@@ -5023,6 +5089,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
             return {};
         }
     }
+    lift_stage.End();
 
     u64 coverage_modules_ignored = 0;
     for (const auto& [build_id, gaps] : recorded_gaps.modules) {
@@ -5492,6 +5559,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
             // the configure and build subprocesses.
             QProcessEnvironment vs_env = QProcessEnvironment::systemEnvironment();
             {
+                const ExportTiming::StageScope toolchain_stage{"toolchain_env"};
 #ifdef _WIN32
                 const QString vcvars = FindVcVars64();
                 if (vcvars.isEmpty()) {
@@ -5661,6 +5729,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                     QString clang_cmake;
                     // Fresh every export: the sources are new anyway, and no
                     // library of an earlier export may be linked by mistake.
+                    ExportTiming::StageScope module_configure_stage{"module_configure"};
                     QDir(clang_dir).removeRecursively();
                     for (const auto& candidate : cmake_candidates) {
                         if (!QFile::exists(candidate)) {
@@ -5687,6 +5756,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                         LOG_WARNING(Frontend, "clang-cl module project: {} failed to configure:\n{}",
                                     candidate.toStdString(), log.right(3000).toStdString());
                     }
+                    module_configure_stage.End();
                     bool ok = !clang_cmake.isEmpty();
                     if (!ok) {
                         fallback(QStringLiteral("the module project did not configure"));
@@ -5715,6 +5785,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                                                   : tr("Compiling %1 (clang-cl)...").arg(m));
                         };
                         report(0, 0);
+                        const ExportTiming::StageScope module_build_stage{
+                            "module_build", m.toStdString()};
                         QProcess p;
                         p.setProcessEnvironment(vs_env);
                         // No --parallel cap here: the generated CMakeLists put
@@ -5758,6 +5830,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                         }
                     }
                     if (ok) {
+                        const ExportTiming::StageScope launcher_configure_stage{
+                            "launcher_configure"};
                         QProcess p;
                         p.setProcessEnvironment(vs_env);
                         if (RunProcessDrained(
@@ -5783,6 +5857,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                     while (ok) {
                         ReportStage(ExportStage::Compile, 1.0);
                         ReportStage(ExportStage::Link, 0.0, link_stage_text);
+                        const ExportTiming::StageScope launcher_build_stage{"launcher_build"};
                         QProcess p;
                         p.setProcessEnvironment(vs_env);
                         int link_rc = RunProcessDrained(
@@ -6118,6 +6193,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
             }
 
             if (link_rc == 0) {
+                const ExportTiming::StageScope collect_stage{"artifact_collect"};
                 // The target lands wherever suyu-cmd does; look in the usual spots.
                 const QStringList candidates = {
                     build_tree + QStringLiteral("/bin/suyu-cmd-static.exe"),
@@ -6321,6 +6397,26 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
     QJsonArray fallback_array;
     for (const auto& module : fallback_modules) {
         fallback_array.append(module);
+    }
+
+    const ExportTiming::StageScope manifest_stage{"manifest_write"};
+    if (ExportTiming::Global().Enabled()) {
+        const auto flag = [](bool value) { return value ? "true" : "false"; };
+        auto& timing = ExportTiming::Global();
+        timing.SetOption("image_abi", suyu::recomp::g_emit_fastmem ? "6" : "5");
+        timing.SetOption("fm_inline", flag(fm_inline));
+        timing.SetOption("fp_shared", flag(fp_shared));
+        timing.SetOption("fpx_vec", flag(fpx_vec));
+        timing.SetOption("direct_chain", flag(direct_chain));
+        timing.SetOption("indirect_chain", flag(indirect_chain));
+        timing.SetOption("chain_start", flag(chain_start));
+        timing.SetOption("cross_chain", flag(cross_chain));
+        timing.SetOption("translate_all", flag(translate_all));
+        timing.SetOption("full_scan", flag(full_scan));
+        timing.SetOption("recomp_compiler", last_recomp_compiler.toStdString());
+        timing.SetOption("total_blocks_analyzed", std::to_string(total_blocks));
+        timing.SetOption("recompiled_c_blocks", std::to_string(recomp_total_blocks));
+        timing.SetOption("total_text_bytes", std::to_string(total_text_bytes));
     }
 
     // Write the AOT manifest with real analysis results
@@ -6656,6 +6752,8 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
             if (!QFile::copy(launcher_src, launcher_dst)) {
                 return fail(QStringLiteral("could not copy the export launcher"));
             }
+            CountCopiedBytes(ToFsPath(launcher_dst));
+            ExportTiming::Global().SetSize("launcher", PathSizeBytes(ToFsPath(launcher_dst)));
 
             // The launcher keeps the Aevora icon from its own resources (suyu.rc).
 
@@ -6663,6 +6761,7 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
                 const QString src = bin_dir + QLatin1Char('/') + QLatin1String(dll);
                 if (QFile::exists(src)) {
                     QFile::copy(src, pkg_dir + QDir::separator() + QLatin1String(dll));
+                    CountCopiedBytes(ToFsPath(pkg_dir + QDir::separator() + QLatin1String(dll)));
                 }
             }
 
@@ -6670,6 +6769,7 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
             // its own folder. Each is checked against what the build recorded before the
             // staged aot_cache (their source) is removed below.
             if (has_static_launcher && last_split_export) {
+                std::uint64_t images_bytes = 0;
                 for (const auto& image : last_split_export->images) {
                     const QString file = QString::fromStdString(image.file);
                     const QString image_src = cache_dir + QStringLiteral("/launcher/") + file;
@@ -6678,6 +6778,9 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
                         return fail(QStringLiteral("could not copy the module image %1 from %2")
                                         .arg(file, QDir::toNativeSeparators(image_src)));
                     }
+                    CountCopiedBytes(ToFsPath(image_dst));
+                    images_bytes += static_cast<std::uint64_t>(image.size_bytes);
+                    ExportTiming::Global().SetSize("dll", images_bytes);
                     QString packaged_sha256;
                     qint64 packaged_size_bytes = 0;
                     if (!HashFileSha256(image_dst, &packaged_sha256, &packaged_size_bytes) ||
@@ -6717,6 +6820,9 @@ bool GameExportDialog::PackageNativeExport(const QString& rom_path, const QStrin
                 !CopyFileReplacingExisting(cache_dir + QStringLiteral("/aot_manifest.json"),
                                            pkg_dir + QStringLiteral("/aot_manifest.json"))) {
                 return fail(QStringLiteral("could not copy the AOT manifest"));
+            }
+            if (ExportTiming::Global().Enabled()) {
+                ExportTiming::Global().SetSize("work_tree", PathSizeBytes(ToFsPath(cache_dir)));
             }
             std::string remove_error;
             if (!PackagePolicy::RemoveTreeNoFollow(ToFsPath(cache_dir), &remove_error)) {
@@ -7121,6 +7227,58 @@ public:
 private:
     bool& flag_;
 };
+
+// One export's ExportTiming record (SUYU_EXPORT_TIMING=1). It samples memory while it lives and
+// writes export_timing.json to the log folder when it ends, whether the export finished or not.
+class ExportTimingSession {
+public:
+    using FillFinal = std::function<void(ExportTiming::Recorder&)>;
+
+    explicit ExportTimingSession(FillFinal fill_final) : fill_final_{std::move(fill_final)} {
+        const bool enabled =
+            Common::EnvFlagDefaultOff(qEnvironmentVariable("SUYU_EXPORT_TIMING").toStdString());
+        ExportTiming::Global().Reset(enabled);
+        if (!enabled) {
+            return;
+        }
+        total_.emplace("total");
+#ifdef _WIN32
+        sampler_.emplace();
+#endif
+    }
+    ~ExportTimingSession() {
+        auto& recorder = ExportTiming::Global();
+        if (!recorder.Enabled()) {
+            return;
+        }
+        total_.reset();
+#ifdef _WIN32
+        sampler_.reset();
+#endif
+        fill_final_(recorder);
+        if (const std::string problem = recorder.Validate(); !problem.empty()) {
+            LOG_WARNING(Frontend, "Export timing record is malformed: {}", problem);
+        }
+        const auto path = Common::FS::GetSuyuPath(Common::FS::SuyuPath::LogDir) /
+                          "export_timing.json";
+        std::ofstream file{path, std::ios::binary | std::ios::trunc};
+        file << recorder.ToJson();
+        if (file.good()) {
+            LOG_INFO(Frontend, "Export timing written to {}", Common::FS::PathToUTF8String(path));
+        } else {
+            LOG_WARNING(Frontend, "Could not write {}", Common::FS::PathToUTF8String(path));
+        }
+    }
+    ExportTimingSession(const ExportTimingSession&) = delete;
+    ExportTimingSession& operator=(const ExportTimingSession&) = delete;
+
+private:
+    FillFinal fill_final_;
+    std::optional<ExportTiming::StageScope> total_;
+#ifdef _WIN32
+    std::optional<ExportTiming::ProcessTreeSampler> sampler_;
+#endif
+};
 } // namespace
 
 /// Direct-from-ROM icon+title fallback for when the export ran without ever
@@ -7403,6 +7561,27 @@ void GameExportDialog::OnExport() {
         }
         return;
     }
+
+    std::filesystem::path timing_package_path;
+    bool timing_completed = false;
+    const ExportTimingSession timing_session{[&](ExportTiming::Recorder& recorder) {
+        recorder.SetField("commit", Common::g_scm_rev);
+        recorder.SetField("branch", Common::g_scm_branch);
+#ifdef SUYU_NO_JIT
+        recorder.SetField("build", "no-JIT");
+#else
+        recorder.SetField("build", "JIT-capable");
+#endif
+        recorder.SetField("backend", backend_combo->currentText().toStdString());
+        recorder.SetField("split_main", split_main ? "true" : "false");
+        recorder.SetField("completed", timing_completed ? "true" : "false");
+        recorder.SetField("cache_outcome", last_aot_cache_outcome.toStdString());
+        recorder.SetField("cache_publish", last_aot_cache_publish.toStdString());
+        recorder.SetField("cache_reused", last_aot_cache_reused ? "true" : "false");
+        if (!timing_package_path.empty()) {
+            recorder.SetSize("package", PathSizeBytes(timing_package_path));
+        }
+    }};
 
     const QString rom_path = rom_path_edit->text();
     const QString output_dir = output_path_edit->text();
@@ -7823,6 +8002,7 @@ void GameExportDialog::OnExport() {
     // The build is complete and linked here, so keep it before packaging can fail.
     if (uses_aot && WantsCompiledOutput() && platform == TargetPlatform::Windows &&
         !last_aot_cache_reused && !last_aot_cache_busy) {
+        const ExportTiming::StageScope publish_stage{"cache_publish"};
         PublishAotCacheEntry(cache_work, backend, export_program_id, split_main, split_export);
     }
     injected("precompile");
@@ -7830,6 +8010,7 @@ void GameExportDialog::OnExport() {
     ReportStage(ExportStage::Package, 0.0, tr("Packaging native export artifacts..."));
     test_export_rejection.clear();
 
+    ExportTiming::StageScope package_stage{"package"};
     if (!PackageNativeExport(rom_path, cache_work, staging_root, game_name, platform, backend,
                              split_export)) {
         finish_failed(test_driven_export && !test_export_rejection.isEmpty()
@@ -7837,6 +8018,7 @@ void GameExportDialog::OnExport() {
                           : tr("Packaging failed."));
         return;
     }
+    package_stage.End();
     injected("package");
     if (portable) {
         // The launcher opens the sealed copy in the package, not a game file at a recorded path.
@@ -8008,7 +8190,9 @@ void GameExportDialog::OnExport() {
         }
     }
     expect.portable = portable;
+    ExportTiming::StageScope validate_stage{"validate"};
     const auto findings = PackagePolicy::ValidateLocalExport(staging->root, expect);
+    validate_stage.End();
     if (!findings.empty()) {
         for (const auto& finding : findings) {
             LOG_ERROR(Frontend, "Package check: {}: {} [{}]", finding.path, finding.detail,
@@ -8019,7 +8203,9 @@ void GameExportDialog::OnExport() {
     }
     injected("validate");
 
+    ExportTiming::StageScope promote_stage{"promote"};
     const auto promoted = PackagePolicy::Promote(*staging, ToFsPath(destination), conflict_policy);
+    promote_stage.End();
     if (!promoted.ok) {
         test_export_conflict = promoted.conflict;
         finish_failed(promoted.conflict
@@ -8049,6 +8235,8 @@ void GameExportDialog::OnExport() {
                                      steam_replace, steam_wikipedia, cover_urls);
     }
 
+    timing_package_path = promoted.final_path;
+    timing_completed = true;
     export_button->setEnabled(true);
     status_label->setText(tr("Export completed: %1").arg(final_path));
     emit ExportFinished(true, final_path);

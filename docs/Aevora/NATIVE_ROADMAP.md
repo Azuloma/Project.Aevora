@@ -71,7 +71,6 @@ Plan (2026-10-21):
 - Stage 4: implemented and awaiting the user's commit. The exporter uses the frontend's own build tree: the JIT frontend serves Hybrid/JIT, while the no-JIT frontend serves strict static AOT. The dialog omits Dynarmic and Hybrid items under `SUYU_NO_JIT`; strict mode rejects modules that cannot be recompiled, while the LNK1248 JIT retry remains an explicit Hybrid-only fallback. Cache and manifest backend identity now distinguishes `suyu-static` from `suyu-static-nojit`; the no-JIT export-build-kit was not packaged because it cannot provide a usable Hybrid mode and remains a release follow-up.
 - Stage 5: at HEAD `a0fb2b3`, both trees were reconfigured with matching `GIT_REV`; the no-JIT tree rebuilt with 0 errors, the full PLA export selected `suyu-static-nojit` with fallback disabled and no runtime code generation, and the exported launcher plus `suyu-cmd-static.exe` passed `--require-absent N1`. The exported launcher contains no `dynarmic` string, and the user played from launch through exploring the Obsidian Fieldlands for about 110 seconds with zero transitions, zero unresolved import traps, 7,486,015,732 static blocks, and no crash or fatal log. The title qualifier was not confirmed.
 - Stage 5 performance caveat: the user reports that static AOT has improved somewhat but still performs worse than JIT. The CPU-budget run kept the 30 FPS cap through 42 seconds and then had about 50 ms frame p50; it was one scene sequence with no same-position JIT measurement. N1 proves CPU execution without a JIT, not performance parity; closing the gap is later work measured with CPU ms/frame at the same position.
-
 - Build the static launcher without dynarmic. A lookup miss or unimplemented instruction fails fast with a diagnostic naming the guest address and module, instead of falling back.
 - Exclusive access and the reservation monitor use native atomics without the dynarmic monitor.
 - Hybrid AOT + JIT stays available only in a separate investigation build.
@@ -92,8 +91,8 @@ Plan (2026-10-21):
 - Stage 2: compare the native mapper with `KPageTable` under `SUYU_NATIVE_MEM_SHADOW=1`, including per-SVC results, `QueryMemory`, and page entries, with a goal of zero supported-path mismatches.
 - Stage 3: split into 3a (standalone backing/host mapping), 3b (wire `KProcessPageTable` and counted fail-fast stubs), and 3c (JIT/AOT PLA sessions and CPU ms/frame comparison); use `SUYU_NATIVE_MEM`, default on, with `SUYU_NATIVE_MEM=0` disabling it.
 - Stage 4: remove kernel memory-manager symbols from the no-JIT native build, add fail-fast stubs for unsupported callers, bypass kernel memory initialization, and pass `--require-absent N1,N2`.
-- Stage 5: full export, supported-path play, structural gate, measurement, and documentation acceptance. See [N2_DESIGN.md](N2_DESIGN.md) for the detailed plan and observed seams.
-- Status (2026-10-25): **N2 accepted** through Stage 5 (gate PASS on host and exported no-JIT launchers, kernel_memory 128 to 0; a 232 s no-JIT PLA run with `unsupported_ops=15` equal to the agreed allow-list and zero static/JIT transitions; JIT native-on versus off with no CPU ms/frame regression). Caveats: the no-JIT counter stays 15 by agreement, the on/off comparison was not a same-position measurement, and the legacy `KPageTable` remains in the JIT build. Results are in [N2_DESIGN.md](N2_DESIGN.md#stage-5-results-n2-acceptance).
+- Stage 5: full export, supported-path play, structural gate, measurement, and documentation acceptance. See [N2_DESIGN.md](NATIVEIZATION_HISTORY/N2_DESIGN.md) for the detailed plan and observed seams.
+- Status (2026-10-25): **N2 accepted** through Stage 5 (gate PASS on host and exported no-JIT launchers, kernel_memory 128 to 0; a 232 s no-JIT PLA run with `unsupported_ops=15` equal to the agreed allow-list and zero static/JIT transitions; JIT native-on versus off with no CPU ms/frame regression). Caveats: the no-JIT counter stays 15 by agreement, the on/off comparison was not a same-position measurement, and the legacy `KPageTable` remains in the JIT build. Results are in [N2_DESIGN.md](NATIVEIZATION_HISTORY/N2_DESIGN.md#stage-5-results-n2-acceptance).
 
 Done when: the kernel memory-manager deny list passes for the native build, and memory tests (map, unmap, protection, shared memory) pass with negative controls.
 
@@ -216,21 +215,21 @@ Done when: the repository builds the native runtime, the Aevora Recompiler, and 
 
 ## Order and dependencies
 
-| Milestone | Depends on | Notes |
-| --- | --- | --- |
-| N0 | - | Fixes scope for everything after it. |
-| N1 | N0 | Can start immediately after N0. |
-| N2 | N0 | Before N3, which needs the native mapper for stacks and TLS. |
-| N3 | N2 | Largest effect on host CPU per core. |
-| N4 | N3 | Defines the hook-or-IPC boundary used by N5-N7. |
-| N5, N6, N7 | N4 | Independent of each other. |
-| N8 | N4, N5 (shaders and assets), G1 (offline shader stage) | Largest milestone; N8a can start after N0 for inventory. |
-| N9 | N1-N8 | Final structural gate. |
-| N10 | N9, G4 | Release. |
-| G1 | - | Can start any time. |
-| G2 | G1 | |
-| G3 | G1 (settings definition); N5-N8 for full settings coverage | Can start on the current runtime. |
-| G4 | G2, G3 | |
+| Milestone  | Depends on                                                 | Notes                                                        |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| N0         | -                                                          | Fixes scope for everything after it.                         |
+| N1         | N0                                                         | Can start immediately after N0.                              |
+| N2         | N0                                                         | Before N3, which needs the native mapper for stacks and TLS. |
+| N3         | N2                                                         | Largest effect on host CPU per core.                         |
+| N4         | N3                                                         | Defines the hook-or-IPC boundary used by N5-N7.              |
+| N5, N6, N7 | N4                                                         | Independent of each other.                                   |
+| N8         | N4, N5 (shaders and assets), G1 (offline shader stage)     | Largest milestone; N8a can start after N0 for inventory.     |
+| N9         | N1-N8                                                      | Final structural gate.                                       |
+| N10        | N9, G4                                                     | Release.                                                     |
+| G1         | -                                                          | Can start any time.                                          |
+| G2         | G1                                                         |                                                              |
+| G3         | G1 (settings definition); N5-N8 for full settings coverage | Can start on the current runtime.                            |
+| G4         | G2, G3                                                     |                                                              |
 
 ## Decisions
 

@@ -2,6 +2,19 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.4-dev1 - Unreleased
+
+*Development entry 1 toward v0.0.4. Not a release; no build artifacts are published.*
+
+### Added
+
+- Opt-in export timing for EX01 stage S0: `SUYU_EXPORT_TIMING=1` makes an export write `export_timing.json` (schema 1) to the user-data log folder. It records stage times from a monotonic clock (`input_hash`, `option_resolve`, `cache_lookup`, `worktree_wipe`, `nso_analysis`, `lift_emit`, `toolchain_env`, `clang_self_test`, `module_configure`, `module_build` per module, `launcher_configure`, `launcher_build`, `artifact_collect`, `manifest_write`, `cache_publish`, `package`, `validate`, `promote`, `total`), per-module generated unit counts and sizes, the peak process-tree working set and system commit (sampled every 500 ms), hashed and copied byte counts, output sizes, the cache outcome, and the emitter options. Unset, every call is a no-op and no file is written. The clang-cl build path is instrumented; the MSVC fallback path is not.
+- `src/suyu/export_timing.h` (recorder, validator, JSON writer) and `export_timing_sampler.h` (Windows sampler); `tests/recompiler_smoke/export_timing_unit.cpp` with bad-record negative controls (a validator weakened to accept an unknown stage name fails line 77).
+
+### Verification
+
+- `smoke_export_timing_unit` built standalone with MSVC `/W4` and passes; the weakened-validator mutant fails fast. The no-JIT host tree (`msvc-release-nojit`) builds `suyu` and `suyu-cmd`. No export was run, so the baseline, the file contents from a real export, and the byte-identical check with the option off are still open.
+
 ## v0.0.3-dev21 - Unreleased
 
 *Development entry 21 toward v0.0.3. Not a release; no build artifacts are published.*
