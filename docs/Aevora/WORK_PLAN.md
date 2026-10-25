@@ -8,7 +8,7 @@ Determine whether PLA can run through Suyu-derived static CPU recompilation, the
 
 ## Status
 
-HEAD is `4736362` (v0.0.3-dev21: recompiled launchers titled `In game - Project Aevora <commit> (<mode>, Clang <version>, <platform>)` and carrying `dist/aevora_game.ico`; the user confirmed title and icon). Both host trees were rebuilt at `4736362` (`GIT_REV` checked). Stage 4c is validated on PLA (see the 4c row).
+HEAD is `adfcac5` (docs and two comment lines after dev21 `4736362`); the Stage 5 / N2 acceptance Markdown is uncommitted. Both host trees were built at `adfcac5` or `4736362` source (runtime code identical). **N2 is accepted** (Stage 5 row below).
 
 Commits of this stage: dev16 `b0e33ec` (4c-1a), dev17 `ed7886a` (4c-1b), dev18 `0612230` (4c-1c), dev19 `82967e2` (4c-1c review fixes), dev20 `38451f6` (4c-2); dev21 `4736362` is an unrelated title/icon change.
 
@@ -21,9 +21,9 @@ Commits of this stage: dev16 `b0e33ec` (4c-1a), dev17 `ed7886a` (4c-1b), dev18 `
 | 4c-1b (dev17) | Rename `KMemoryManager` to `KPhysicalMemory`. |
 | 4c-1c (dev18, dev19) | `k_process_layout.{h,cpp}`: layout, heap-address helpers, `KMemoryRange`, `InvalidateInstructionCacheOfProcessTable` moved out of `KPageTableBase`; Code reviewer fixes (SPDX, comments). |
 | 4c-2 (dev20) | Legacy kernel page table dropped from the `SUYU_NO_JIT` build (details below). `structural_gate.py --require-absent N2` passes on the **host** no-JIT `suyu-cmd.exe` (kernel_memory 95 to 0; report `D:\HisuiWakeBuild\diag\gate_n2_dev20_nojit_host.txt`). |
-| 4c validation | No-JIT PLA run with dev21 (105.8 s, X-button exit): start-up lines present, `native_mem final unsupported_ops=15 inconsistency=0 optimized_memory_failures=0` (the dev16 line is now observed). The 15 are 1 `AllowDeviceMappingOfExecPages` at start-up and 7 `GetNormalMemorySize` plus 8 `Finalize` after the window close; the user **accepted** them instead of forwarding to the native model. Exported-launcher gate PASS (kernel_memory 128 to 0, `gate_n2_dev21_nojit_static.txt`). Log copy: `D:\HisuiWakeBuild\diag\export_dev21_nojit_log.txt`. A JIT PLA run for dev18-dev21 is still owed. |
-| 4c-3 | In progress: two stale "unconnected" comments in `native_memory` headers fixed and the `N2_DESIGN.md` anchor repaired (uncommitted); the include cleanups and a Code reviewer pass for 4c-1a/1b remain. |
-| 5 | Not started; needs the user's go-ahead. |
+| 4c validation | No-JIT PLA run with dev21 (105.8 s, X-button exit): start-up lines present, `native_mem final unsupported_ops=15 inconsistency=0 optimized_memory_failures=0` (the dev16 line is now observed). The 15 are 1 `AllowDeviceMappingOfExecPages` at start-up and 7 `GetNormalMemorySize` plus 8 `Finalize` after the window close; the user **accepted** them instead of forwarding to the native model. Exported-launcher gate PASS (kernel_memory 128 to 0, `gate_n2_dev21_nojit_static.txt`). Log copy: `D:\HisuiWakeBuild\diag\export_dev21_nojit_log.txt`. The JIT PLA run was done later as Stage 5 A4. |
+| 4c-3 | Closed by the user (session 51). Done: two stale "unconnected" comments and the `N2_DESIGN.md` anchor. Dropped on purpose: the `k_page_table_base.h`/`k_page_table.h` include cleanup (no effect on the gate, large rebuild) and the Code reviewer pass for 4c-1a/1b (never done). |
+| 5 (N2 acceptance) | **Done 2026-10-25.** A1 gate PASS (host and exported), A3 no-JIT PLA 232 s with the allow-listed `unsupported_ops=15`, A4 JIT native on versus off with no CPU ms/frame regression (on 70.1 versus off 77.3 ms/frame over steady windows, p99 33.9 versus 33.8 ms; different hand-walked routes, so no speed-up is claimed). Details: [Stage 5 results](N2_DESIGN.md#stage-5-results-n2-acceptance). |
 
 What 4c-2 changed (so a new session can find it):
 
@@ -48,14 +48,14 @@ What 4c-2 changed (so a new session can find it):
 ## Immediate next action
 
 1. Check `git status` and `git log -5`; the user commits documentation edits. After any commit, reconfigure and rebuild both host trees one at a time and check `GIT_REV` in `msvc-release\src\common\scm_rev.cpp` and `msvc-release-nojit\src\common\scm_rev.cpp` (currently stale, see Status). JIT: `rebuild-suyu.bat`; no-JIT: `configure-msvc-release-nojit.bat` then `rebuild-suyu-nojit.bat`. The helper's compiler output is in `D:\HisuiWakeBuild\rebuild-suyu-nojit.log` (or `rebuild-suyu.log`), not in the redirected console log.
-2. Done (dev21 run, see the 4c validation row in Status): the no-JIT PLA run and the exported-launcher gate pass; `unsupported_ops=15` was accepted by the user. Still owed: a JIT PLA run (start-up lines, no crash) for dev18-dev21. Optional later: forward `GetNormalMemorySize`, `Finalize`, and `AllowDeviceMappingOfExecPages` of `KProcessPageTable` to the native model so the counter reads 0 and a real unsupported call stands out.
+2. Done (dev21 run, see the 4c validation row in Status): the no-JIT PLA run and the exported-launcher gate pass; `unsupported_ops=15` was accepted by the user. The JIT PLA run for dev18-dev21 was done as Stage 5 A4 (no crash, start-up lines present). Optional later: forward `GetNormalMemorySize`, `Finalize`, and `AllowDeviceMappingOfExecPages` of `KProcessPageTable` to the native model so the counter reads 0 and a real unsupported call stands out.
 3. The dev16 `native_mem final` line is verified on an X-button exit (105.78 s); no diagnostic line at the start of `ShutdownMainProcess` is needed. Update the Open items entry when the Markdown batch is next written.
-4. 4c-3 (needs the user's go): remaining cleanups only if they matter: the stale comments naming `KPageTableBase`/`KMemoryManager` in `native_memory` headers and `k_native_address_space.h`, the `k_page_table_base.h` include in `k_native_address_space.h` and the `k_page_table.h` includes, `N2_DESIGN.md` Stage 4c section (still says "implementation not started"; add a 4c results section), and a Code reviewer pass for 4c-1a and 4c-1b (never done).
-5. Stage 5 follows; it needs the user's go-ahead and a design read of [N2_DESIGN.md](N2_DESIGN.md) and [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md).
+4. 4c-3 is closed (see the Status row); its dropped items are not planned. Stage 4c is complete apart from the owed JIT PLA run.
+5. N2 is accepted. Decide with the user what follows: N3 (native threads and synchronization, [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md)) needs its own design read, or the AOT-versus-JIT performance gap (same-position CPU ms/frame). Neither is started; each needs the user's go.
 6. Optional: full `tests/recompiler_smoke/run.py` (needs `CPM_SOURCE_CACHE=D:\HisuiWakeBuild\cpm`; it now also needs the `fmt` headers from that cache), `aot_cache_outcome` on the next export, unresolved GOT/PLT symbols, title confirmation, the `native_physical_pool.h` unit-suffix nit, `CMakeLists.txt` source order after the `k_physical_memory` rename.
 
 ## Open items
-- **dev16 unverified:** `native_mem final ...` did not appear in the JIT `suyu-cmd` run after the X-button exit (log ends with `BufferQueue has been abandoned` at 245.7 s although `suyu-cmd` calls `ShutdownMainProcess()` afterwards). Either the log tail is lost at exit or the call in `KernelCore::Impl::Shutdown` is not reached; not determined.
+- **dev16 line:** `native_mem final ...` is verified on no-JIT exports (X-button exit, 105.8 s and 232 s runs). In JIT `suyu-cmd` runs (including both A4 runs) the log ends with `BufferQueue has been abandoned` and the line is absent; not diagnosed.
 - Qt combo-index bug: `src/suyu/configuration/configure_audio.cpp:72` maps Libretro index 4 to value 5; value 4 is Null-sink.
 - `research/tests` failures and tracked `__pycache__`/`.pyc`, `src/suyu/game_card.cpp.bak`, and the `cpp-lint.sh` tab issue remain.
 - Bad Image dialog cause and `recomp_bundle.cpp:305` error-mode handling remain unresolved.

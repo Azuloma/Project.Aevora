@@ -93,6 +93,7 @@ Plan (2026-10-21):
 - Stage 3: split into 3a (standalone backing/host mapping), 3b (wire `KProcessPageTable` and counted fail-fast stubs), and 3c (JIT/AOT PLA sessions and CPU ms/frame comparison); use `SUYU_NATIVE_MEM`, default on, with `SUYU_NATIVE_MEM=0` disabling it.
 - Stage 4: remove kernel memory-manager symbols from the no-JIT native build, add fail-fast stubs for unsupported callers, bypass kernel memory initialization, and pass `--require-absent N1,N2`.
 - Stage 5: full export, supported-path play, structural gate, measurement, and documentation acceptance. See [N2_DESIGN.md](N2_DESIGN.md) for the detailed plan and observed seams.
+- Status (2026-10-25): **N2 accepted** through Stage 5 (gate PASS on host and exported no-JIT launchers, kernel_memory 128 to 0; a 232 s no-JIT PLA run with `unsupported_ops=15` equal to the agreed allow-list and zero static/JIT transitions; JIT native-on versus off with no CPU ms/frame regression). Caveats: the no-JIT counter stays 15 by agreement, the on/off comparison was not a same-position measurement, and the legacy `KPageTable` remains in the JIT build. Results are in [N2_DESIGN.md](N2_DESIGN.md#stage-5-results-n2-acceptance).
 
 Done when: the kernel memory-manager deny list passes for the native build, and memory tests (map, unmap, protection, shared memory) pass with negative controls.
 

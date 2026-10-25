@@ -280,6 +280,50 @@ The extra `Locked`/`Uncached` bits on already-mapped pages during `MapPhysicalMe
 
 Code review found 1 P1 and 4 P2 findings: the late dump held the shadow mutex while taking a kernel light lock; state-only comparison could cross a pre-call block boundary; read-only wrappers were over-guarded; UnmapPhysicalMemory/freed-page coverage was missing; and the physical-op relaxation limits were undocumented. All five findings were fixed in this batch.
 
+## Stage 5 design (agreed with the user)
+
+Stage 5 adds no runtime code. It is the acceptance of N2: one final build, user-observed play, the gate, one measurement, and the documentation. Commit state when it starts: dev21 `4736362` plus the uncommitted Markdown/comment commit.
+
+### Acceptance items
+
+| # | Item | Pass condition | State |
+|---|---|---|---|
+| A1 | Structural gate | `--require-absent N2` (and `N1`) PASS on host `suyu-cmd.exe` and on an exported `suyu-cmd-static.exe` | Passed at dev20 (host) and dev21 (exported); repeat only if N2 sources change |
+| A2 | Final build | Both host trees `GIT_REV` equals the commit being accepted; the export is made after that commit, because the AOT cache keys on commit and branch | dev21 trees built; redo if any source changes |
+| A3 | No-JIT AOT play (user) | Launch to Obsidian Fieldlands, bag open/close, a save, then X-button exit; at least about 5 minutes. Log: both start-up lines; no `<Critical>` line except the allow-list below; `inconsistency=0`, `optimized_memory_failures=0`; `static -> JIT` and `JIT -> static` both 0 | One 105.8 s run passed (dev21); bag, save, and a longer segment not yet run |
+| A4 | JIT native-on vs `SUYU_NATIVE_MEM=0` (user) | Same position, `SUYU_CPU_BUDGET`: process and per-thread CPU ms/frame at the 30 FPS cap and p99 frame interval; below the cap also CPU ms per second. Expected neutral; a regression is reported, not hidden. JIT start-up lines (`native_mem: KPageTable not constructed`) and no crash | Never run; this is also the owed JIT PLA run for dev18-dev21 |
+| A5 | Documentation | N2 results summary in this file, NATIVE_ROADMAP N2 marked done with its caveats, WORK_PLAN status and next action (N3 or the AOT-vs-JIT gap), CODEBASE_INDEX entries | After A3/A4 |
+
+### `unsupported_ops` allow-list
+
+The dev21 run logged 15 counted stand-in calls: 1 `AllowDeviceMappingOfExecPages` during process initialization, then 7 `GetNormalMemorySize` and 8 `Finalize` after the window close. The proposal is to accept exactly this set and fail A3 on any other operation name, any call before the window close besides the first, or a count above 15 for a play of similar shape. The user accepted this allow-list (decision 1). Forwarding the three operations to the native model (so the counter reads 0) is not part of Stage 5.
+
+### Decisions (made by the user)
+
+1. The allow-list above is accepted as is; no forwarding work.
+2. A4 is run, not waived: JIT native on versus `SUYU_NATIVE_MEM=0`, same position, CPU ms/frame and p99. It also serves as the JIT PLA run owed for dev18-dev21.
+3. The A3 route and length are as listed in the table (about 5 minutes or more: launch, Obsidian Fieldlands, bag open/close, a save, X-button exit). A save-data backup before A3 and A4 is advised because native memory is default-on.
+
+### Known limits carried past acceptance (not Stage 5 work)
+
+Stage 2 shadow limits (the unidentified extra Locked/Uncached writer, state-only relaxed physical-op comparison), the unsupported IPC map-alias, `MapCodeMemory`, and unsafe/insecure operations, the missing `HAS_NCE` 256 GiB limit in `GetSpaceInfo` (must be fixed before any NCE build), the untested concurrent-allocation lock of the physical pool, the open question about per-process base randomization, and the JIT-only legacy `KPageTable` fallback. These are listed in WORK_PLAN `N2 limits to remember` and stay there.
+
+### Order of work
+
+1. User commits the current Markdown/comment changes; both trees are reconfigured and rebuilt (the touched headers are included widely).
+2. A3 (no-JIT AOT export, play, copy `user\log\suyu_log.txt`) and A4 (JIT tree: one run with native on, one with `SUYU_NATIVE_MEM=0`, each with `SUYU_CPU_BUDGET` at the same position; copy each log before the next run, and do not build or export during measurement). Claude reads the logs against the pass conditions.
+3. A3 comes first, since the export is already built; A4 follows on the JIT tree.
+4. A5 documentation batch, then a normal commit (no devN) unless the user wants a dev entry.
+
+## Stage 5 results (N2 acceptance)
+
+Source state: dev21 `4736362` plus comment-only and Markdown commits up to `adfcac5`; the A3 export was built at `4736362`, and `git diff 4736362 adfcac5 -- src` is two comment lines.
+
+- **A1 gate:** `--require-absent N2` PASS on host no-JIT `suyu-cmd.exe` (kernel_memory 95 to 0) and on the exported `suyu-cmd-static.exe` (128 to 0, `gate_n2_dev21_nojit_static.txt`).
+- **A3 no-JIT AOT play:** 232 s from launch through Obsidian Fieldlands, bag, save, and X-button exit (route confirmed by the user; the log alone shows `FS Commit (STUBBED)` twice). Start-up lines present; no `<Critical>` line other than the allow-list; `native_mem final unsupported_ops=15 inconsistency=0 optimized_memory_failures=0`, the 15 being exactly the agreed allow-list (1 `AllowDeviceMappingOfExecPages` at 0.5 s, 7 `GetNormalMemorySize` and 8 `Finalize` at 232.2 s after the window close). Coverage: 13,544,079,197 static blocks, 10,372,746 SVCs to HLE, `static -> JIT` 0, `JIT -> static` 0, unresolved import traps 0. Log: `D:\HisuiWakeBuild\diag\export_a3_nojit_log.txt`. The 232 s is below the planned "about 5 minutes"; the user accepted the run.
+- **A4 JIT, native on versus `SUYU_NATIVE_MEM=0`** (`SUYU_CPU_BUDGET=1`, 30 FPS cap, JIT tree at `adfcac5`, logs `diag\cpu_budget\a4_native_on.txt` and `a4_native_off.txt`; the files were named `suyu_log_JITon/JITOff` by the user). Both runs show 30 ten-second windows and the first four are loading. Steady windows (at least 290 frames, 25 on and 26 off): process CPU **70.1 ms/frame on versus 77.3 off** (median 72.3 versus 79.8); the three CPUCore threads together 46.3 versus 48.1; `frame_p50` 33.33 and 33.34; `frame_p99` median 33.9 versus 33.8 (both hold the cap). The difference is mainly HostTiming (16.4 versus 20.0) and VulkanWorker (1.8 versus 2.9), which depend on the scene and the host, not on memory handling. Conclusion: **no regression with native memory on; a speed-up is not claimed**, because the two routes were walked by hand and are not the same position. Start-up lines: on logs `native_mem enabled` and `native_mem: KPageTable not constructed`; off logs no `native_mem` line. Neither run crashed. The JIT runs again lack `native_mem final` (the log ends with `BufferQueue has been abandoned` at about 305 s), so the dev16 line is verified only for the no-JIT launcher.
+- **Not done by N2:** forwarding the three stand-in operations (counter stays 15 in the no-JIT build by agreement), IPC map-alias, code memory, unsafe/insecure operations, `HAS_NCE` limit, NCE, and a same-position AOT-versus-JIT measurement.
+
 ## Risks
 
 - `SetupForIpc` map-alias semantics may differ from ordinary mappings.
