@@ -16,7 +16,9 @@
 <p align="center">
   <a href="#Status">Status</a> |
   <a href="#Features">Features</a> |
-  <a href="#License">License</a>
+  <a href="#License">License</a><br>
+  <a href="https://github.com/project-aevora/project.aevora-nightly">Nightly Build</a> |
+  <a href="https://github.com/project-aevora/project.aevora-issue-tracker">Issue Tracker</a>
 <p>
 
 > [!IMPORTANT]
