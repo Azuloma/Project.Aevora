@@ -5,7 +5,7 @@
 
 #include "core/native_memory/native_address_space.h"
 
-// Kernel-free region predicates of KPageTableBase (N2 stage 4b-2); connected to nothing yet.
+// Kernel-free region predicates of KPageTableBase (N2 stage 4b-2).
 // Arithmetic is unsigned and wraps exactly like the kernel's, so edge cases agree.
 namespace Core::NativeMemory {
 

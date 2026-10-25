@@ -11,7 +11,7 @@
 
 #include "core/native_memory/native_process_memory.h"
 
-// Standalone reference-counted physical page pool replacing KMemoryManager (N2 stage 4a), unconnected.
+// Standalone reference-counted physical page pool replacing KMemoryManager (N2 stage 4a).
 // Offsets are byte offsets; operations are self-locking and never call out under the lock.
 namespace Core::NativeMemory {
 
