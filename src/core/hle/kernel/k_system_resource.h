@@ -11,7 +11,9 @@
 #include "core/hle/kernel/k_auto_object.h"
 #include "core/hle/kernel/k_dynamic_resource_manager.h"
 #include "core/hle/kernel/k_physical_memory.h"
+#ifndef SUYU_NO_JIT
 #include "core/hle/kernel/k_page_table_manager.h"
+#endif
 #include "core/hle/kernel/k_resource_limit.h"
 #include "core/hle/kernel/slab_helpers.h"
 
@@ -40,6 +42,15 @@ public:
         return m_is_secure_resource;
     }
 
+#ifdef SUYU_NO_JIT
+    void SetManagers(KMemoryBlockSlabManager& mb, KBlockInfoManager& bi) {
+        ASSERT(m_p_memory_block_slab_manager == nullptr);
+        ASSERT(m_p_block_info_manager == nullptr);
+
+        m_p_memory_block_slab_manager = std::addressof(mb);
+        m_p_block_info_manager = std::addressof(bi);
+    }
+#else
     void SetManagers(KMemoryBlockSlabManager& mb, KBlockInfoManager& bi, KPageTableManager& pt) {
         ASSERT(m_p_memory_block_slab_manager == nullptr);
         ASSERT(m_p_block_info_manager == nullptr);
@@ -49,6 +60,7 @@ public:
         m_p_block_info_manager = std::addressof(bi);
         m_p_page_table_manager = std::addressof(pt);
     }
+#endif
 
     const KMemoryBlockSlabManager& GetMemoryBlockSlabManager() const {
         return *m_p_memory_block_slab_manager;
@@ -56,9 +68,11 @@ public:
     const KBlockInfoManager& GetBlockInfoManager() const {
         return *m_p_block_info_manager;
     }
+#ifndef SUYU_NO_JIT
     const KPageTableManager& GetPageTableManager() const {
         return *m_p_page_table_manager;
     }
+#endif
 
     KMemoryBlockSlabManager& GetMemoryBlockSlabManager() {
         return *m_p_memory_block_slab_manager;
@@ -66,9 +80,11 @@ public:
     KBlockInfoManager& GetBlockInfoManager() {
         return *m_p_block_info_manager;
     }
+#ifndef SUYU_NO_JIT
     KPageTableManager& GetPageTableManager() {
         return *m_p_page_table_manager;
     }
+#endif
 
     KMemoryBlockSlabManager* GetMemoryBlockSlabManagerPointer() {
         return m_p_memory_block_slab_manager;
@@ -76,14 +92,18 @@ public:
     KBlockInfoManager* GetBlockInfoManagerPointer() {
         return m_p_block_info_manager;
     }
+#ifndef SUYU_NO_JIT
     KPageTableManager* GetPageTableManagerPointer() {
         return m_p_page_table_manager;
     }
+#endif
 
 private:
     KMemoryBlockSlabManager* m_p_memory_block_slab_manager{};
     KBlockInfoManager* m_p_block_info_manager{};
+#ifndef SUYU_NO_JIT
     KPageTableManager* m_p_page_table_manager{};
+#endif
     bool m_is_secure_resource{false};
 };
 
@@ -128,10 +148,14 @@ private:
     KDynamicPageManager m_dynamic_page_manager;
     KMemoryBlockSlabManager m_memory_block_slab_manager;
     KBlockInfoManager m_block_info_manager;
+#ifndef SUYU_NO_JIT
     KPageTableManager m_page_table_manager;
+#endif
     KMemoryBlockSlabHeap m_memory_block_heap;
     KBlockInfoSlabHeap m_block_info_heap;
+#ifndef SUYU_NO_JIT
     KPageTableSlabHeap m_page_table_heap;
+#endif
     KResourceLimit* m_resource_limit{};
     KVirtualAddress m_resource_address{};
     size_t m_resource_size{};

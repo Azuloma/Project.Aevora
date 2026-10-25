@@ -260,8 +260,10 @@ Result KPhysicalMemory::NativeAllocatePageGroup(KPageGroup* out, size_t num_page
 
 Result KPhysicalMemory::InitializeOptimizedMemory(u64 process_id, Pool pool) {
     if (m_native) {
-        LOG_ERROR(Kernel, "native_phys_pool does not support optimized process memory (pool {})",
-                  static_cast<u32>(pool));
+        m_optimized_memory_failures.fetch_add(1);
+        LOG_ERROR(Kernel,
+                  "native_phys_pool does not support optimized process memory (process {} pool {})",
+                  process_id, static_cast<u32>(pool));
         R_THROW(ResultNotImplemented);
     }
     const u32 pool_index = static_cast<u32>(pool);

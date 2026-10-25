@@ -15,7 +15,9 @@
 #include "core/hle/kernel/k_capabilities.h"
 #include "core/hle/kernel/k_condition_variable.h"
 #include "core/hle/kernel/k_handle_table.h"
+#ifndef SUYU_NO_JIT
 #include "core/hle/kernel/k_page_table_manager.h"
+#endif
 #include "core/hle/kernel/k_process_page_table.h"
 #include "core/hle/kernel/k_system_resource.h"
 #include "core/hle/kernel/k_thread.h"
@@ -437,9 +439,11 @@ public:
     const KBlockInfoManager& GetBlockInfoManager() const {
         return m_system_resource->GetBlockInfoManager();
     }
+#ifndef SUYU_NO_JIT
     const KPageTableManager& GetPageTableManager() const {
         return m_system_resource->GetPageTableManager();
     }
+#endif
 
     KThread* GetRunningThread(s32 core) const {
         return m_running_threads[core];

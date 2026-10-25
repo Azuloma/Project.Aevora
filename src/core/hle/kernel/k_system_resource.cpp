@@ -35,6 +35,10 @@ Result KSecureSystemResource::Initialize(KernelCore& kernel, size_t size, KResou
                                          static_cast<u32>(m_resource_pool));
     };
 
+#ifdef SUYU_NO_JIT
+    // No page table heap, so no reference counts to reserve.
+    constexpr size_t rc_size = 0;
+#else
     // Check that our allocation is bigger than the reference counts needed for it.
     const size_t rc_size =
         Common::AlignUp(KPageTableSlabHeap::CalculateReferenceCountSize(m_resource_size), PageSize);
@@ -45,24 +49,38 @@ Result KSecureSystemResource::Initialize(KernelCore& kernel, size_t size, KResou
         GetHeapPhysicalAddress(kernel, m_resource_address);
     auto* resource =
         kernel.System().DeviceMemory().GetPointer<KPageTableManager::RefCount>(resource_paddr);
+#endif
 
     // Initialize slab heaps.
+#ifdef SUYU_NO_JIT
+    R_TRY(m_dynamic_page_manager.Initialize(m_resource_address + rc_size,
+                                            m_resource_size - rc_size, PageSize));
+#else
     m_dynamic_page_manager.Initialize(m_resource_address + rc_size, m_resource_size - rc_size,
                                       PageSize);
+#endif
+#ifndef SUYU_NO_JIT
     m_page_table_heap.Initialize(std::addressof(m_dynamic_page_manager), 0, resource);
+#endif
     m_memory_block_heap.Initialize(std::addressof(m_dynamic_page_manager), 0);
     m_block_info_heap.Initialize(std::addressof(m_dynamic_page_manager), 0);
 
     // Initialize managers.
+#ifndef SUYU_NO_JIT
     m_page_table_manager.Initialize(std::addressof(m_dynamic_page_manager),
                                     std::addressof(m_page_table_heap));
+#endif
     m_memory_block_slab_manager.Initialize(std::addressof(m_dynamic_page_manager),
                                            std::addressof(m_memory_block_heap));
     m_block_info_manager.Initialize(std::addressof(m_dynamic_page_manager),
                                     std::addressof(m_block_info_heap));
 
     // Set our managers.
+#ifdef SUYU_NO_JIT
+    this->SetManagers(m_memory_block_slab_manager, m_block_info_manager);
+#else
     this->SetManagers(m_memory_block_slab_manager, m_block_info_manager, m_page_table_manager);
+#endif
 
     // Commit the memory reservation.
     memory_reservation.Commit();
@@ -80,7 +98,9 @@ void KSecureSystemResource::Finalize(KernelCore& kernel) {
     // Check that we have no outstanding allocations.
     ASSERT(m_memory_block_slab_manager.GetUsed() == 0);
     ASSERT(m_block_info_manager.GetUsed() == 0);
+#ifndef SUYU_NO_JIT
     ASSERT(m_page_table_manager.GetUsed() == 0);
+#endif
 
     // Free our secure memory.
     KSystemControl::FreeSecureMemory(kernel, m_resource_address, m_resource_size,

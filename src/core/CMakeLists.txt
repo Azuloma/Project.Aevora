@@ -294,7 +294,6 @@ add_library(core STATIC
     hle/kernel/k_light_session.cpp
     hle/kernel/k_light_session.h
     hle/kernel/k_memory_block.h
-    hle/kernel/k_memory_block_manager.cpp
     hle/kernel/k_memory_block_manager.h
     hle/kernel/k_memory_layout.cpp
     hle/kernel/k_memory_layout.h
@@ -314,7 +313,6 @@ add_library(core STATIC
     hle/kernel/k_page_heap.cpp
     hle/kernel/k_page_heap.h
     hle/kernel/k_page_table.h
-    hle/kernel/k_page_table_base.cpp
     hle/kernel/k_page_table_base.h
     hle/kernel/k_page_table_manager.h
     hle/kernel/k_page_table_slab_heap.h
@@ -1307,6 +1305,11 @@ endif()
 
 if (SUYU_NO_JIT)
     target_compile_definitions(core PUBLIC SUYU_NO_JIT)
+else()
+    # The legacy kernel page table is only the fallback of the JIT build (N2 stage 4c-2).
+    target_sources(core PRIVATE
+        hle/kernel/k_memory_block_manager.cpp
+        hle/kernel/k_page_table_base.cpp)
 endif()
 
 target_sources(core PRIVATE hle/service/ssl/ssl_backend_openssl.cpp)

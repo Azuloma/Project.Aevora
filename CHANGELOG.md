@@ -2,6 +2,29 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.3-dev20 - Unreleased
+
+*Development entry 20 toward v0.0.3. Not a release; no build artifacts are published.*
+
+### Changed
+
+- Removed the legacy kernel page table from the `SUYU_NO_JIT` build (N2 stage 4c-2). `k_page_table_base.cpp` and `k_memory_block_manager.cpp` are compiled only in the JIT build. The `KPageTableManager`/`KPageTableSlabHeap` members of `KernelCore`, `KSystemResource`, and `KSecureSystemResource` and the `KProcess::GetPageTableManager()` accessor exist only there; in the no-JIT build the dynamic page manager keeps the pages that would have gone to the page table heap, and `KSecureSystemResource::Initialize` now propagates a failed `KDynamicPageManager::Initialize`.
+- New `k_absent_legacy_table.h`: in the no-JIT build `KProcessPageTable::m_page_table` is a `KAbsentLegacyTable`, whose every operation logs its name at critical level, is counted, and fails (`ResultNotImplemented`, or false/0/null). `KProcessPageTable::Initialize` fails with a counted `Unsupported` for a non-39-bit address space or `SUYU_NATIVE_MEM=0` in that build. `GetMemory`, `GetImpl`, and `AcquireDeviceMapLock` assert a successful `Initialize`.
+- The `native_mem final` line now ends with `optimized_memory_failures=N`; `unsupported_ops` includes that count and the stand-in call count. `KPhysicalMemory` counts refused optimized-memory requests (`OptimizedMemoryFailures()`) and logs the process id. The no-JIT start-up line reads `native_mem: legacy page table not built in this build` instead of `native_mem: KPageTable not constructed`.
+- `KProcessPageTable::SetHeapSize` uses its own region getters instead of the legacy table's (same values).
+
+### Added
+
+- `smoke_absent_legacy_table_unit` with five header mutants (`absent-no-count`, `absent-success-result`, `absent-no-log`, `absent-value-nonzero`, `absent-wrong-name`) in `tests/recompiler_smoke`; `run.py` finds `fmt` in the CPM cache (`--fmt-include`, `FMT_INCLUDE_DIR`).
+
+### Verification
+
+- `structural_gate.py --require-absent N2` passes on the no-JIT host `suyu-cmd.exe` (`kernel_memory` symbols 95 before, 0 after; report `D:\HisuiWakeBuild\diag\gate_n2_dev20_nojit_host.txt`). This is the host executable, not an exported `suyu-cmd-static.exe`.
+- JIT and no-JIT host trees built with 0 errors. `/EP` comparison of the JIT tree (1,717 units): 12 flagged groups, all intended (new accessor and counter, `KLegacyTable`, `SetHeapSize` getters, the two changed log lines, `scm_rev.cpp` date). The final log edit made after this comparison was not compared again.
+- The new unit and its five mutants were built through the smoke CMake with MSVC: the unit passes, every mutant exits 1. The full `run.py` was not run.
+- Code reviewer (Codex): 3 P2 findings (unchecked dynamic page manager result, stand-in reachable before `Initialize`, optimized-memory failures missing from `unsupported_ops`) fixed; its test-gap item is the unit above.
+- Not done: an exported no-JIT launcher gate, a no-JIT PLA session (needs `unsupported_ops=0 inconsistency=0`), and a JIT PLA session.
+
 ## v0.0.3-dev19 - Unreleased
 
 *Development entry 19 toward v0.0.3. Not a release; no build artifacts are published.*

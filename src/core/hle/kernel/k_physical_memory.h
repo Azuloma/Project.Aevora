@@ -7,6 +7,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <tuple>
 #include <vector>
 
@@ -197,6 +198,11 @@ public:
     }
 
 public:
+    // Optimized process memory is not modeled by the native pool; each refused request is counted.
+    u64 OptimizedMemoryFailures() const {
+        return m_optimized_memory_failures.load();
+    }
+
     static size_t CalculateManagementOverheadSize(size_t region_size) {
         return Impl::CalculateManagementOverheadSize(region_size);
     }
@@ -412,6 +418,7 @@ private:
     PoolArray<u64> m_optimized_process_ids{};
     PoolArray<bool> m_has_optimized_process{};
     bool m_native{};
+    std::atomic<u64> m_optimized_memory_failures{0};
     mutable Core::NativeMemory::PhysicalPoolSet m_native_pools;
 };
 

@@ -17,7 +17,11 @@
 #include "common/logging.h"
 #include "core/hle/kernel/k_native_address_space.h"
 #include "core/hle/kernel/k_native_memory_adapters.h"
+#ifdef SUYU_NO_JIT
+#include "core/hle/kernel/k_absent_legacy_table.h"
+#else
 #include "core/hle/kernel/k_page_table.h"
+#endif
 #include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_scoped_lock.h"
 #include "core/hle/kernel/svc_results.h"
@@ -28,6 +32,12 @@
 namespace Kernel {
 
 namespace NativeMemory = Core::NativeMemory;
+
+#ifdef SUYU_NO_JIT
+using KLegacyTable = KAbsentLegacyTable;
+#else
+using KLegacyTable = KPageTable;
+#endif
 
 // Declared in k_thread.h; the IPC copies write to and read from the calling process.
 Core::Memory::Memory& GetCurrentMemory(KernelCore& kernel);
@@ -42,7 +52,7 @@ private:
     static constexpr u32 NativeAddressSpaceWidth = 39;
 
     // Exactly one of m_page_table (fallback) and m_native_space (native) exists after Initialize.
-    std::unique_ptr<KPageTable> m_page_table;
+    std::unique_ptr<KLegacyTable> m_page_table;
     KernelCore& m_kernel;
     std::unique_ptr<KNativeAddressSpace> m_native_space;
     // The one source of region predicates and getters for both modes.
@@ -88,12 +98,16 @@ private:
         return Common::EnvFlagDefaultOn(value ? value : "");
     }
 
+#ifdef SUYU_NO_JIT
+    static constexpr const char* UnsupportedHint = "this build has no kernel page table";
+#else
+    static constexpr const char* UnsupportedHint = "SUYU_NATIVE_MEM=0 restores the kernel page table";
+#endif
+
     Result Unsupported(const char* operation, u64 address) {
         m_native_unsupported_ops.fetch_add(1);
-        LOG_ERROR(Kernel,
-                  "native_mem: {} at {:#x} is not supported by the native model (SUYU_NATIVE_MEM=0 "
-                  "restores the kernel page table)",
-                  operation, address);
+        LOG_ERROR(Kernel, "native_mem: {} at {:#x} is not supported by the native model ({})",
+                  operation, address, UnsupportedHint);
         return ResultNotImplemented;
     }
 
@@ -218,6 +232,7 @@ private:
         return NativeMemory::Result::Other;
     }
 
+#ifndef SUYU_NO_JIT
     NativeMemory::Layout ObserveLayout() const {
         NativeMemory::Layout layout;
         layout.width = m_page_table->GetAddressSpaceWidth();
@@ -324,9 +339,19 @@ private:
         }
         R_RETURN(real);
     }
+#else
+    template <typename RealFn, typename ShadowFn>
+    Result RunShadowed(NativeMemory::ShadowOp, u64, u64, u64, RealFn&& real_fn, ShadowFn&&) {
+        R_RETURN(real_fn());
+    }
+#endif
 
 public:
-    KProcessPageTable(KernelCore& kernel) : m_kernel(kernel) {}
+    KProcessPageTable(KernelCore& kernel) : m_kernel(kernel) {
+#ifdef SUYU_NO_JIT
+        m_page_table = std::make_unique<KLegacyTable>();
+#endif
+    }
 
     Result Initialize(Svc::CreateProcessFlag as_type, bool enable_aslr, bool enable_das_merge,
                       bool from_back, KPhysicalMemory::Pool pool, KProcessAddress code_address,
@@ -344,16 +369,28 @@ public:
                 m_alias_region_extra_size = m_native_space->GetAliasRegionExtraSize();
                 CreateNativeMemory(resource_limit);
                 LOG_INFO(Kernel, "native_mem enabled");
+#ifdef SUYU_NO_JIT
+                LOG_INFO(Kernel, "native_mem: legacy page table not built in this build");
+#else
                 LOG_INFO(Kernel, "native_mem: KPageTable not constructed");
+#endif
                 if (IsShadowRequested()) {
                     LOG_WARNING(Kernel,
                                 "native_mem_shadow ignored: the native model is the primary page table");
                 }
                 R_SUCCEED();
             }
+#ifndef SUYU_NO_JIT
             LOG_INFO(Kernel, "native_mem skipped for a {}-bit address space; using KPageTable",
                      address_space_width);
+#endif
         }
+#ifdef SUYU_NO_JIT
+        return Unsupported(IsNativeRequested() ? "non-39-bit address space"
+                                               : "SUYU_NATIVE_MEM=0 process",
+                           address_space_width);
+    }
+#else
         m_page_table = std::make_unique<KPageTable>(m_kernel);
         R_TRY(m_page_table->InitializeForProcess(as_type, enable_aslr, enable_das_merge, from_back,
                                                  pool, code_address, code_size, system_resource,
@@ -367,6 +404,7 @@ public:
         }
         R_SUCCEED();
     }
+#endif
 
     // Logged once, from kernel shutdown or Finalize, whichever comes first.
     void LogNativeFinalStatistics() {
@@ -376,8 +414,16 @@ public:
         const u64 inconsistency = m_native->WithSpace([](const NativeMemory::MappedAddressSpace& space) {
             return space.InconsistencyCount();
         });
-        LOG_INFO(Kernel, "native_mem final unsupported_ops={} inconsistency={}",
-                 m_native_unsupported_ops.load(), inconsistency);
+#ifdef SUYU_NO_JIT
+        const u64 legacy_table_calls = KAbsentLegacyTable::CallCount();
+#else
+        const u64 legacy_table_calls = 0;
+#endif
+        const u64 optimized_memory_failures = m_kernel.PhysicalMemory().OptimizedMemoryFailures();
+        LOG_INFO(Kernel,
+                 "native_mem final unsupported_ops={} inconsistency={} optimized_memory_failures={}",
+                 m_native_unsupported_ops.load() + legacy_table_calls + optimized_memory_failures,
+                 inconsistency, optimized_memory_failures);
     }
 
     void Finalize() {
@@ -402,6 +448,24 @@ public:
         }
     }
 
+#ifdef SUYU_NO_JIT
+    [[nodiscard]] Core::Memory::Memory& GetMemory() noexcept {
+        ASSERT_MSG(m_native_space, "page table used before a successful Initialize");
+        return m_native_space->GetMemory();
+    }
+    [[nodiscard]] Core::Memory::Memory const& GetMemory() const noexcept {
+        ASSERT_MSG(m_native_space, "page table used before a successful Initialize");
+        return m_native_space->GetMemory();
+    }
+    [[nodiscard]] Common::PageTable& GetImpl() noexcept {
+        ASSERT_MSG(m_native_space, "page table used before a successful Initialize");
+        return m_native_space->GetImpl();
+    }
+    [[nodiscard]] Common::PageTable const& GetImpl() const noexcept {
+        ASSERT_MSG(m_native_space, "page table used before a successful Initialize");
+        return m_native_space->GetImpl();
+    }
+#else
     [[nodiscard]] Core::Memory::Memory& GetMemory() noexcept {
         return m_native_space ? m_native_space->GetMemory() : m_page_table->GetMemory();
     }
@@ -414,14 +478,20 @@ public:
     [[nodiscard]] Common::PageTable const& GetImpl() const noexcept {
         return m_native_space ? m_native_space->GetImpl() : m_page_table->GetImpl();
     }
+#endif
 
     size_t GetNumGuardPages() const {
         return ProcessNumGuardPages;
     }
 
     KScopedLightLock AcquireDeviceMapLock() {
+#ifdef SUYU_NO_JIT
+        ASSERT_MSG(m_native_space, "page table used before a successful Initialize");
+        return KScopedLightLock(m_native_space->GetDeviceMapLock());
+#else
         return m_native_space ? KScopedLightLock(m_native_space->GetDeviceMapLock())
                               : m_page_table->AcquireDeviceMapLock();
+#endif
     }
 
     Result SetMemoryPermission(KProcessAddress addr, size_t size, Svc::MemoryPermission perm) {
@@ -489,8 +559,8 @@ public:
             R_SUCCEED();
         }
         R_RETURN(RunShadowed(
-            NativeMemory::ShadowOp::SetHeapSize, GetInteger(m_page_table->GetHeapRegionStart()),
-            m_page_table->GetHeapRegionSize(), 0,
+            NativeMemory::ShadowOp::SetHeapSize, GetInteger(GetHeapRegionStart()),
+            GetHeapRegionSize(), 0,
             [&] { return m_page_table->SetHeapSize(out, size); },
             [&](NativeMemory::AddressSpace& space) { return space.SetHeapSize(shadow_out, size); }));
     }
@@ -1261,6 +1331,7 @@ public:
                               : m_page_table->GetBlockInfoManager();
     }
 
+#ifndef SUYU_NO_JIT
     bool OwnsBasePageTable(const KPageTableBase* table) const {
         return m_page_table.get() == table;
     }
@@ -1279,6 +1350,7 @@ public:
         ASSERT(m_page_table != nullptr);
         return *m_page_table;
     }
+#endif
 };
 
 } // namespace Kernel

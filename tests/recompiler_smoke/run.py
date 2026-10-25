@@ -119,6 +119,7 @@ NATIVE_SHADOW_MUTANTS = ("shadow-result", "shadow-state-field", "shadow-permissi
 NATIVE_PROCESS_MEMORY_MUTANTS = ("proc-unmap-free", "proc-heap-shrink", "proc-alias-src", "proc-short-alloc", "proc-free-noop", "proc-unlock-protect", "proc-lock-protect", "proc-runmap-advance", "proc-visit-gap", "proc-collect-state", "proc-device-count", "proc-device-clear", "proc-device-merge", "proc-lock-attribute", "proc-process-state", "proc-io-region", "proc-perm-protect", "proc-process-protect", "proc-alias-dst", "proc-alias-restore", "proc-external-free", "proc-finalize-host", "proc-finalize-anon", "proc-check-first", "proc-heap-check", "proc-transfer-none", "proc-device-permission", "proc-process-none", "proc-owned-flag", "proc-alias-owned", "proc-sethostmapped", "proc-pages-check", "proc-pages-perm", "proc-unmap-pages", "proc-guard", "proc-align", "proc-tls-anywhere", "proc-copy-uncached", "proc-copy-perm", "proc-copy-write", "proc-copy-src-rule", "proc-copy-dst-rule", "proc-result-code", "proc-guard-tail", "proc-area-overflow", "proc-copy-zero")
 NATIVE_KERNEL_CONVERT_MUTANTS = ("conv-perm-kernel-read", "conv-perm-exec", "conv-offset-base", "conv-offset-low", "conv-cap-negative", "conv-cap-overflow", "conv-cap-nolimit", "acct-reserve", "acct-rollback", "acct-free", "acct-flag", "acct-disabled", "conv-perm-inverse", "conv-pages-merge", "conv-pages-size")
 NATIVE_PHYSICAL_POOL_MUTANTS = ("pool-open-count", "pool-close-zero", "pool-merge-next", "pool-merge-prev", "pool-back-take", "pool-align-front", "pool-align-back", "pool-close-check", "pool-open-check", "pool-free-count", "pool-page-align", "pool-extent-base", "pool-free-source", "pool-reserved-open", "pool-reserved-close", "pool-reserve-flag", "pool-region-wrap", "pool-region-align", "pool-pick-fit", "pool-pick-largest")
+ABSENT_LEGACY_TABLE_MUTANTS = ("absent-no-count", "absent-success-result", "absent-no-log", "absent-value-nonzero", "absent-wrong-name")
 NATIVE_POOL_SET_MUTANTS = ("set-overlap", "set-rollback", "set-take-free", "set-direction", "set-pool-filter", "set-covered", "set-piece-end", "set-total-pool", "set-free-pool", "set-close-continue", "set-find-pool")
 NATIVE_ADDRESS_REGIONS_MUTANTS = ("reg-contains-wrap", "reg-contains-last", "reg-contains-single", "reg-alias-start", "reg-alias-end", "reg-heap-start", "reg-heap-end", "reg-unsafe-state", "reg-region-heap", "reg-region-stack", "reg-region-kernel-map", "reg-region-code", "reg-insecure-case", "reg-unmapped", "reg-can-wrap", "reg-can-region-end", "reg-can-heap-empty", "reg-can-alias-empty", "reg-can-free", "reg-can-normal-alias", "reg-can-ipc-heap", "reg-can-stack-heap", "reg-can-stack-alias", "reg-get-stack", "reg-heap-size-guard", "reg-alias-size-guard", "reg-can-size-guard")
 
@@ -856,6 +857,23 @@ def find_nlohmann_include(explicit):
                      "--nlohmann-include or set NLOHMANN_INCLUDE_DIR (or CPM_SOURCE_CACHE)")
 
 
+def find_fmt_include(explicit):
+    """Directory holding fmt/format.h, for the absent legacy table test (CPM cache by default)."""
+    candidates = []
+    if explicit:
+        candidates.append(Path(explicit))
+    if os.environ.get("FMT_INCLUDE_DIR"):
+        candidates.append(Path(os.environ["FMT_INCLUDE_DIR"]))
+    cache = os.environ.get("CPM_SOURCE_CACHE")
+    if cache:
+        candidates.extend(sorted(Path(cache).glob("fmt/*/include")))
+    for candidate in candidates:
+        if (candidate / "fmt" / "format.h").is_file():
+            return candidate
+    raise SystemExit("smoke: fmt/format.h not found for smoke_absent_legacy_table_unit; pass "
+                     "--fmt-include or set FMT_INCLUDE_DIR (or CPM_SOURCE_CACHE)")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[2])
@@ -864,10 +882,13 @@ def main():
     parser.add_argument("--cxx", help="explicit C++ compiler path, if needed")
     parser.add_argument("--nlohmann-include", type=Path,
                         help="directory containing nlohmann/json.hpp (default: search the CPM cache)")
+    parser.add_argument("--fmt-include", type=Path,
+                        help="directory containing fmt/format.h (default: search the CPM cache)")
     parser.add_argument("--only-xmod", action="store_true",
                         help="run only the three-module split fixture (static/DLL/static)")
     args = parser.parse_args()
     nlohmann_include = find_nlohmann_include(args.nlohmann_include)
+    fmt_include = find_fmt_include(args.fmt_include)
     source = args.source.resolve()
     test_source = Path(__file__).resolve().parent
     with tempfile.TemporaryDirectory(prefix="suyu-recompiler-smoke-") as tmp:
@@ -888,7 +909,8 @@ def main():
         # Which generator the script uses is cmake's default unless -G is passed in
         # the environment; record it so a result can be tied to it.
         cache_generator = None
-        export_build = build("export", f"-DNLOHMANN_INCLUDE_DIR={nlohmann_include.as_posix()}")
+        export_build = build("export", f"-DNLOHMANN_INCLUDE_DIR={nlohmann_include.as_posix()}",
+                             f"-DFMT_INCLUDE_DIR={fmt_include.as_posix()}")
         for line in (export_build / "CMakeCache.txt").read_text(encoding="utf-8",
                                                                 errors="replace").splitlines():
             if line.startswith("CMAKE_GENERATOR:"):
@@ -929,6 +951,10 @@ def main():
         call([executable(export_build, "smoke_native_physical_pool_unit")])
         for name in NATIVE_PHYSICAL_POOL_MUTANTS:
             mutant = executable(export_build, "smoke_native_" + name.replace("-", "_"))
+            call([mutant], expected=1, timeout=30)
+        call([executable(export_build, "smoke_absent_legacy_table_unit")])
+        for name in ABSENT_LEGACY_TABLE_MUTANTS:
+            mutant = executable(export_build, "smoke_" + name.replace("-", "_"))
             call([mutant], expected=1, timeout=30)
         call([executable(export_build, "smoke_native_pool_set_unit")])
         for name in NATIVE_POOL_SET_MUTANTS:

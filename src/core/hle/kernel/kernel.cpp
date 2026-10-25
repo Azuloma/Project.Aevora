@@ -274,10 +274,12 @@ struct KernelCore::Impl {
         ASSERT(Common::IsAligned(GetInteger(address), PageSize));
         ASSERT(Common::IsAligned(size, PageSize));
 
+#ifndef SUYU_NO_JIT
         // Ensure that we have space for our reference counts.
         const size_t rc_size = Common::AlignUp(KPageTableSlabHeap::CalculateReferenceCountSize(size), PageSize);
         ASSERT(rc_size < size);
         size -= rc_size;
+#endif
 
         // Initialize the resource managers' shared page manager.
         resource_manager_page_manager.emplace();
@@ -294,6 +296,7 @@ struct KernelCore::Impl {
         sys_memory_block_heap->Initialize(std::addressof(*resource_manager_page_manager), SystemMemoryBlockSlabHeapSize);
         block_info_heap->Initialize(std::addressof(*resource_manager_page_manager), BlockInfoSlabHeapSize);
 
+#ifndef SUYU_NO_JIT
         // Reserve all but a fixed number of remaining pages for the page table heap.
         const size_t num_pt_pages = resource_manager_page_manager->GetCount() - resource_manager_page_manager->GetUsed() - ReservedDynamicPageCount;
         page_table_heap.emplace();
@@ -302,6 +305,7 @@ struct KernelCore::Impl {
         page_table_heap->Initialize(
             std::addressof(*resource_manager_page_manager), num_pt_pages,
             /*GetPointer<KPageTableManager::RefCount>(address + size)*/ nullptr);
+#endif
 
         // Setup the slab managers.
         KDynamicPageManager* const app_dynamic_page_manager = nullptr;
@@ -312,8 +316,10 @@ struct KernelCore::Impl {
         sys_memory_block_manager.emplace();
         app_block_info_manager.emplace();
         sys_block_info_manager.emplace();
+#ifndef SUYU_NO_JIT
         app_page_table_manager.emplace();
         sys_page_table_manager.emplace();
+#endif
 
         app_memory_block_manager->Initialize(app_dynamic_page_manager, std::addressof(*app_memory_block_heap));
         sys_memory_block_manager->Initialize(sys_dynamic_page_manager, std::addressof(*sys_memory_block_heap));
@@ -321,11 +327,13 @@ struct KernelCore::Impl {
         app_block_info_manager->Initialize(app_dynamic_page_manager, std::addressof(*block_info_heap));
         sys_block_info_manager->Initialize(sys_dynamic_page_manager, std::addressof(*block_info_heap));
 
+#ifndef SUYU_NO_JIT
         app_page_table_manager->Initialize(app_dynamic_page_manager, std::addressof(*page_table_heap));
         sys_page_table_manager->Initialize(sys_dynamic_page_manager, std::addressof(*page_table_heap));
 
         // Check that we have the correct number of dynamic pages available.
         ASSERT(resource_manager_page_manager->GetCount() - resource_manager_page_manager->GetUsed() == ReservedDynamicPageCount);
+#endif
 
         // Create the system page table managers.
         app_system_resource.emplace(kernel);
@@ -334,8 +342,13 @@ struct KernelCore::Impl {
         KAutoObject::Create(std::addressof(*sys_system_resource));
 
         // Set the managers for the system resources.
+#ifdef SUYU_NO_JIT
+        app_system_resource->SetManagers(*app_memory_block_manager, *app_block_info_manager);
+        sys_system_resource->SetManagers(*sys_memory_block_manager, *sys_block_info_manager);
+#else
         app_system_resource->SetManagers(*app_memory_block_manager, *app_block_info_manager, *app_page_table_manager);
         sys_system_resource->SetManagers(*sys_memory_block_manager, *sys_block_info_manager, *sys_page_table_manager);
+#endif
     }
 
     void InitializeShutdownThreads() {
@@ -801,12 +814,16 @@ struct KernelCore::Impl {
 
     // Resource managers
     std::optional<KDynamicPageManager> resource_manager_page_manager;
+#ifndef SUYU_NO_JIT
     std::optional<KPageTableSlabHeap> page_table_heap;
+#endif
     std::optional<KMemoryBlockSlabHeap> app_memory_block_heap;
     std::optional<KMemoryBlockSlabHeap> sys_memory_block_heap;
     std::optional<KBlockInfoSlabHeap> block_info_heap;
+#ifndef SUYU_NO_JIT
     std::optional<KPageTableManager> app_page_table_manager;
     std::optional<KPageTableManager> sys_page_table_manager;
+#endif
     std::optional<KMemoryBlockSlabManager> app_memory_block_manager;
     std::optional<KMemoryBlockSlabManager> sys_memory_block_manager;
     std::optional<KBlockInfoManager> app_block_info_manager;
