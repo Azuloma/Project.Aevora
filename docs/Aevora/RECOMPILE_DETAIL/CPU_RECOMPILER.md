@@ -1,6 +1,6 @@
 # CPU Recompiler (ARM64 to C)
 
-This document describes the completed CPU recompilation path: the translator, the exporter that drives it, the generated-code contracts, and the runtime that executes the result. It is a consolidated reference built from [CODEBASE_INDEX.md](CODEBASE_INDEX.md), [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md), and [CHANGELOG.md](../../CHANGELOG.md). Line numbers drift; use the index for current locations and verify against the code.
+This document describes the completed CPU recompilation path: the translator, the exporter that drives it, the generated-code contracts, and the runtime that executes the result. It is a consolidated reference built from [CODEBASE_INDEX.md](../CODEBASE_INDEX.md), [NATIVE_ROADMAP.md](../NATIVE_ROADMAP.md), and [CHANGELOG.md](../../../CHANGELOG.md). Line numbers drift; use the index for current locations and verify against the code.
 
 The repository has no component named "CPUCodeCompiler". In this document the term means the whole game-CPU path: `arm64_to_c.h`, the exporter in `game_export.cpp`, the generated modules, and `ArmRecomp`.
 

@@ -300,6 +300,8 @@ add_library(core STATIC
     hle/kernel/k_memory_layout.h
     hle/kernel/k_physical_memory.cpp
     hle/kernel/k_physical_memory.h
+    hle/kernel/k_process_layout.cpp
+    hle/kernel/k_process_layout.h
     hle/kernel/k_memory_region.h
     hle/kernel/k_memory_region_type.h
     hle/kernel/k_object_name.cpp

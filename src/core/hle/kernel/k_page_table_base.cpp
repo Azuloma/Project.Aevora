@@ -132,36 +132,7 @@ constexpr Common::MemoryPermission ConvertToMemoryPermission(KMemoryPermission p
     return perms;
 }
 
-NativeMemory::AddressSpaceType ToNativeAddressSpaceType(Svc::CreateProcessFlag as_type) {
-    switch (as_type & Svc::CreateProcessFlag::AddressSpaceMask) {
-    case Svc::CreateProcessFlag::AddressSpace64Bit:
-        return NativeMemory::AddressSpaceType::Bits39;
-    case Svc::CreateProcessFlag::AddressSpace64BitDeprecated:
-        return NativeMemory::AddressSpaceType::Bits36;
-    case Svc::CreateProcessFlag::AddressSpace32Bit:
-        return NativeMemory::AddressSpaceType::Bits32;
-    case Svc::CreateProcessFlag::AddressSpace32BitWithoutAlias:
-        return NativeMemory::AddressSpaceType::Bits32WithoutAlias;
-    default:
-        UNREACHABLE();
-    }
-}
-
 } // namespace
-
-void KPageTableBase::MemoryRange::Open(KernelCore& kernel) {
-    // If the range contains heap pages, open them.
-    if (this->IsHeap()) {
-        kernel.PhysicalMemory().Open(this->GetAddress(), this->GetSize() / PageSize);
-    }
-}
-
-void KPageTableBase::MemoryRange::Close(KernelCore& kernel) {
-    // If the range contains heap pages, close them.
-    if (this->IsHeap()) {
-        kernel.PhysicalMemory().Close(this->GetAddress(), this->GetSize() / PageSize);
-    }
-}
 
 KPageTableBase::KPageTableBase(KernelCore& kernel)
     : m_system(kernel.System()), m_general_lock(kernel),
@@ -221,40 +192,6 @@ Result KPageTableBase::InitializeForKernel(bool is_64_bit, KVirtualAddress start
     // Initialize our memory block manager.
     R_RETURN(m_memory_block_manager.Initialize(m_address_space_start, m_address_space_end,
                                                m_memory_block_slab_manager));
-}
-
-Result KPageTableBase::ComputeProcessLayout(Svc::CreateProcessFlag as_type, bool enable_aslr,
-                                            KProcessAddress code_address, size_t code_size,
-                                            KProcessAddress aslr_space_start,
-                                            NativeMemory::Layout& out_layout) {
-    // Region placement lives in the native layout model so the kernel and native paths cannot drift.
-    NativeMemory::LayoutParams layout_params;
-    layout_params.type = ToNativeAddressSpaceType(as_type);
-    layout_params.code_address = GetInteger(code_address);
-    layout_params.code_size = code_size;
-    layout_params.aslr_space_start = GetInteger(aslr_space_start);
-    layout_params.enable_aslr = enable_aslr;
-    layout_params.extra_alias_region =
-        (as_type & Svc::CreateProcessFlag::EnableAliasRegionExtraSize) != Svc::CreateProcessFlag{0};
-
-    const NativeMemory::Result layout_result = NativeMemory::ComputeLayout(
-        layout_params,
-        [](u64 min, u64 max) { return static_cast<u64>(KSystemControl::GenerateRandomRange(min, max)); },
-        out_layout);
-    R_UNLESS(layout_result != NativeMemory::Result::OutOfMemory, ResultOutOfMemory);
-    ASSERT_MSG(layout_result == NativeMemory::Result::Success, "invalid process layout: {}",
-               NativeMemory::ResultName(layout_result));
-    R_SUCCEED();
-}
-
-size_t KPageTableBase::ComputeAliasRegionExtraSize(Svc::CreateProcessFlag as_type,
-                                                   const NativeMemory::Layout& layout) {
-    const bool extra_alias_region =
-        (as_type & Svc::CreateProcessFlag::EnableAliasRegionExtraSize) != Svc::CreateProcessFlag{0};
-    return ToNativeAddressSpaceType(as_type) == NativeMemory::AddressSpaceType::Bits39 &&
-                   extra_alias_region
-               ? layout.address_space.size >> 3
-               : 0;
 }
 
 Result KPageTableBase::InitializeForProcess(Svc::CreateProcessFlag as_type, bool enable_aslr, bool enable_das_merge, bool from_back, KPhysicalMemory::Pool pool, KProcessAddress code_address, size_t code_size, KSystemResource* system_resource, KResourceLimit* resource_limit, Core::Memory::Memory& memory, KProcessAddress aslr_space_start) {
@@ -1924,7 +1861,7 @@ Result KPageTableBase::SetProcessMemoryPermission(KProcessAddress addr, size_t s
     // Ensure cache coherency, if we're setting pages as executable.
     if (is_x) {
         for (const auto& block : pg) {
-            StoreDataCache(GetHeapVirtualPointer(m_system.Kernel(), block.GetAddress()), block.GetSize());
+            StoreDataCache(GetHeapVirtualPointer(block.GetAddress()), block.GetSize());
         }
         InvalidateInstructionCache(m_system.Kernel(), this, addr, size);
     }
@@ -4044,8 +3981,8 @@ Result KPageTableBase::CopyMemoryFromHeapToHeap(
                 R_UNLESS(IsHeapPhysicalAddress(cur_dst_addr), ResultInvalidCurrentMemory);
 
                 // Copy the data.
-                std::memcpy(GetHeapVirtualPointer(m_system.Kernel(), cur_dst_addr),
-                            GetHeapVirtualPointer(m_system.Kernel(), cur_src_addr), cur_copy_size);
+                std::memcpy(GetHeapVirtualPointer(cur_dst_addr),
+                            GetHeapVirtualPointer(cur_src_addr), cur_copy_size);
 
                 // Update.
                 cur_src_block_addr = src_next_entry.phys_addr;
@@ -4178,8 +4115,8 @@ Result KPageTableBase::CopyMemoryFromHeapToHeapWithoutCheckDestination(
                 R_UNLESS(IsHeapPhysicalAddress(cur_dst_addr), ResultInvalidCurrentMemory);
 
                 // Copy the data.
-                std::memcpy(GetHeapVirtualPointer(m_system.Kernel(), cur_dst_addr),
-                            GetHeapVirtualPointer(m_system.Kernel(), cur_src_addr), cur_copy_size);
+                std::memcpy(GetHeapVirtualPointer(cur_dst_addr),
+                            GetHeapVirtualPointer(cur_src_addr), cur_copy_size);
 
                 // Update.
                 cur_src_block_addr = src_next_entry.phys_addr;
@@ -4442,7 +4379,7 @@ Result KPageTableBase::SetupForIpcServer(KProcessAddress* out_addr, size_t size,
     // Map the start page, if we have one.
     if (start_partial_page != 0) {
         // Ensure the page holds correct data.
-        u8* const start_partial_virt = GetHeapVirtualPointer(m_system.Kernel(), start_partial_page);
+        u8* const start_partial_virt = GetHeapVirtualPointer(start_partial_page);
         if (send) {
             const size_t partial_offset = src_start - aligned_src_start;
             size_t copy_size, clear_size;
@@ -4456,7 +4393,7 @@ Result KPageTableBase::SetupForIpcServer(KProcessAddress* out_addr, size_t size,
 
             std::memset(start_partial_virt, fill_val, partial_offset);
             std::memcpy(start_partial_virt + partial_offset,
-                        GetHeapVirtualPointer(m_system.Kernel(), cur_block_addr) + partial_offset,
+                        GetHeapVirtualPointer(cur_block_addr) + partial_offset,
                         copy_size);
             if (clear_size > 0) {
                 std::memset(start_partial_virt + partial_offset + copy_size, fill_val, clear_size);
@@ -4545,10 +4482,10 @@ Result KPageTableBase::SetupForIpcServer(KProcessAddress* out_addr, size_t size,
     // Map the end page, if we have one.
     if (end_partial_page != 0) {
         // Ensure the page holds correct data.
-        u8* const end_partial_virt = GetHeapVirtualPointer(m_system.Kernel(), end_partial_page);
+        u8* const end_partial_virt = GetHeapVirtualPointer(end_partial_page);
         if (send) {
             const size_t copy_size = src_end - mapping_src_end;
-            std::memcpy(end_partial_virt, GetHeapVirtualPointer(m_system.Kernel(), cur_block_addr),
+            std::memcpy(end_partial_virt, GetHeapVirtualPointer(cur_block_addr),
                         copy_size);
             std::memset(end_partial_virt + copy_size, fill_val, PageSize - copy_size);
         } else {
@@ -5684,20 +5621,6 @@ void KPageTableBase::FinalizeUpdate(PageLinkedList* page_list) {
 
 void KPageTableBase::InvalidateInstructionCacheRange(KProcessAddress address, size_t size) {
     InvalidateInstructionCache(m_system.Kernel(), this, address, size);
-}
-
-void InvalidateInstructionCacheOfProcessTable(KernelCore& kernel, const KProcessPageTable* owner,
-                                              KProcessAddress address, size_t size) {
-    for (auto& process : kernel.GetProcessList()) {
-        if (std::addressof(process->GetPageTable()) != owner) {
-            continue;
-        }
-        for (size_t i = 0; i < Core::Hardware::NUM_CPU_CORES; i++) {
-            if (auto* const interface = process->GetArmInterface(i)) {
-                interface->InvalidateCacheRange(GetInteger(address), size);
-            }
-        }
-    }
 }
 
 } // namespace Kernel

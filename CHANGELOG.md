@@ -2,6 +2,18 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.3-dev18 - Unreleased
+
+*Development entry 18 toward v0.0.3. Not a release; no build artifacts are published.*
+
+### Changed
+
+- Moved the process layout and heap address helpers out of `KPageTableBase` into the new `k_process_layout.{h,cpp}` (N2 stage 4c-1c): `ComputeProcessLayout`, `ComputeAliasRegionExtraSize`, `GetProcessAddressSpaceWidth` (was static `GetAddressSpaceWidth`), `ProcessNumGuardPages`, the `GetLinearMapped*Address` and `GetHeap*` conversions, `InvalidateInstructionCacheOfProcessTable`, and `MemoryRange` (now `KMemoryRange`, kept as an alias inside `KPageTableBase`). Behavior is unchanged; callers in `KProcessPageTable`, `KNativeAddressSpace`, `KPhysicalMemory`, `KSecureSystemResource`, and `k_system_control` use the free functions, so 4c-2 only has to drop sources.
+
+### Verification
+
+- JIT and no-JIT host trees built with 0 errors (`rebuild-suyu.bat`, `rebuild-suyu-nojit.bat`). The `/EP` baseline was not taken before editing, and no unit test, Code reviewer pass, structural gate run, or PLA session has been done for this change.
+
 ## v0.0.3-dev17 - Unreleased
 
 *Development entry 17 toward v0.0.3. Not a release; no build artifacts are published.*

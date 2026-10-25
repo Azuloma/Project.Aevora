@@ -7,6 +7,7 @@
 #include "core/hle/kernel/k_light_lock.h"
 #include "core/hle/kernel/k_physical_memory.h"
 #include "core/hle/kernel/k_page_table_base.h"
+#include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_system_resource.h"
 #include "core/hle/kernel/k_typed_address.h"
 #include "core/hle/kernel/memory_types.h"
@@ -30,9 +31,9 @@ public:
                       KPhysicalMemory::Pool pool, KProcessAddress code_address, size_t code_size,
                       KSystemResource* system_resource, Core::Memory::Memory& memory,
                       KProcessAddress aslr_space_start) {
-        R_TRY(KPageTableBase::ComputeProcessLayout(as_type, enable_aslr, code_address, code_size,
-                                                   aslr_space_start, m_layout));
-        m_alias_region_extra_size = KPageTableBase::ComputeAliasRegionExtraSize(as_type, m_layout);
+        R_TRY(ComputeProcessLayout(as_type, enable_aslr, code_address, code_size, aslr_space_start,
+                                   m_layout));
+        m_alias_region_extra_size = ComputeAliasRegionExtraSize(as_type, m_layout);
         m_block_info_manager = system_resource->GetBlockInfoManagerPointer();
         m_allocate_option = KPhysicalMemory::EncodeOption(
             pool, from_back ? KPhysicalMemory::Direction::FromBack

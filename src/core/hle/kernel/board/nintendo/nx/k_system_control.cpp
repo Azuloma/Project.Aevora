@@ -14,6 +14,7 @@
 #include "core/hle/kernel/board/nintendo/nx/secure_monitor.h"
 #include "core/hle/kernel/k_physical_memory.h"
 #include "core/hle/kernel/k_page_table.h"
+#include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_trace.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/svc_results.h"
@@ -239,7 +240,7 @@ Result KSystemControl::AllocateSecureMemory(KernelCore& kernel, KVirtualAddress*
     };
 
     // We succeeded.
-    *out = KPageTable::GetHeapVirtualAddress(kernel, paddr);
+    *out = GetHeapVirtualAddress(kernel, paddr);
     R_SUCCEED();
 }
 
@@ -255,7 +256,7 @@ void KSystemControl::FreeSecureMemory(KernelCore& kernel, KVirtualAddress addres
     ASSERT(Common::IsAligned(size, alignment));
 
     // Close the secure region's pages.
-    kernel.PhysicalMemory().Close(KPageTable::GetHeapPhysicalAddress(kernel, address),
+    kernel.PhysicalMemory().Close(GetHeapPhysicalAddress(kernel, address),
                                  size / PageSize);
 }
 

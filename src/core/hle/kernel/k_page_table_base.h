@@ -17,6 +17,7 @@
 #include "core/hle/kernel/k_memory_block_manager.h"
 #include "core/hle/kernel/k_memory_layout.h"
 #include "core/hle/kernel/k_physical_memory.h"
+#include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_typed_address.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/result.h"
@@ -60,34 +61,7 @@ public:
     using TraversalEntry = Common::PageTable::TraversalEntry;
     using TraversalContext = Common::PageTable::TraversalContext;
 
-    class MemoryRange {
-    private:
-        KPhysicalAddress m_address = 0;
-        size_t m_size = 0;
-        bool m_heap = false;
-
-    public:
-        explicit MemoryRange() : m_address(0), m_size(0), m_heap(false) {}
-
-        void Set(KPhysicalAddress address, size_t size, bool heap) {
-            m_address = address;
-            m_size = size;
-            m_heap = heap;
-        }
-
-        KPhysicalAddress GetAddress() const {
-            return m_address;
-        }
-        size_t GetSize() const {
-            return m_size;
-        }
-        bool IsHeap() const {
-            return m_heap;
-        }
-
-        void Open(KernelCore& kernel);
-        void Close(KernelCore& kernel);
-    };
+    using MemoryRange = KMemoryRange;
 
 protected:
     enum MemoryFillValue : u8 {
@@ -152,33 +126,6 @@ protected:
 
     static constexpr auto DefaultMemoryIgnoreAttr =
         KMemoryAttribute::IpcLocked | KMemoryAttribute::DeviceShared;
-
-public:
-    static constexpr size_t GetAddressSpaceWidth(Svc::CreateProcessFlag as_type) {
-        switch (static_cast<Svc::CreateProcessFlag>(as_type &
-                                                    Svc::CreateProcessFlag::AddressSpaceMask)) {
-        case Svc::CreateProcessFlag::AddressSpace64Bit:
-            return 39;
-        case Svc::CreateProcessFlag::AddressSpace64BitDeprecated:
-            return 36;
-        case Svc::CreateProcessFlag::AddressSpace32Bit:
-        case Svc::CreateProcessFlag::AddressSpace32BitWithoutAlias:
-            return 32;
-        default:
-            UNREACHABLE();
-        }
-    }
-
-    static constexpr size_t ProcessNumGuardPages = 4;
-
-    // Region placement shared by InitializeForProcess and the native address space; draws randoms in
-    // kernel order. Returns ResultOutOfMemory when no placement fits and asserts on invalid input.
-    static Result ComputeProcessLayout(Svc::CreateProcessFlag as_type, bool enable_aslr,
-                                       KProcessAddress code_address, size_t code_size,
-                                       KProcessAddress aslr_space_start,
-                                       Core::NativeMemory::Layout& out_layout);
-    static size_t ComputeAliasRegionExtraSize(Svc::CreateProcessFlag as_type,
-                                              const Core::NativeMemory::Layout& layout);
 
 private:
     class KScopedPageTableUpdater {
@@ -738,40 +685,17 @@ public:
         return kernel.System().DeviceMemory().GetPointer<u8>(addr);
     }
 
-    static KPhysicalAddress GetLinearMappedPhysicalAddress(KernelCore& kernel,
-                                                           KVirtualAddress addr) {
-        return kernel.MemoryLayout().GetLinearPhysicalAddress(addr);
-    }
-
-    static KVirtualAddress GetLinearMappedVirtualAddress(KernelCore& kernel,
-                                                         KPhysicalAddress addr) {
-        return kernel.MemoryLayout().GetLinearVirtualAddress(addr);
-    }
-
-    // Heap
-    static u8* GetHeapVirtualPointer(KernelCore& kernel, KPhysicalAddress addr) {
-        return kernel.System().DeviceMemory().GetPointer<u8>(addr);
-    }
-
-    static KPhysicalAddress GetHeapPhysicalAddress(KernelCore& kernel, KVirtualAddress addr) {
-        return GetLinearMappedPhysicalAddress(kernel, addr);
-    }
-
-    static KVirtualAddress GetHeapVirtualAddress(KernelCore& kernel, KPhysicalAddress addr) {
-        return GetLinearMappedVirtualAddress(kernel, addr);
-    }
-
     // Member heap
     u8* GetHeapVirtualPointer(KPhysicalAddress addr) {
-        return GetHeapVirtualPointer(m_system.Kernel(), addr);
+        return Kernel::GetHeapVirtualPointer(m_system.Kernel(), addr);
     }
 
     KPhysicalAddress GetHeapPhysicalAddress(KVirtualAddress addr) {
-        return GetHeapPhysicalAddress(m_system.Kernel(), addr);
+        return Kernel::GetHeapPhysicalAddress(m_system.Kernel(), addr);
     }
 
     KVirtualAddress GetHeapVirtualAddress(KPhysicalAddress addr) {
-        return GetHeapVirtualAddress(m_system.Kernel(), addr);
+        return Kernel::GetHeapVirtualAddress(m_system.Kernel(), addr);
     }
 
     // TODO: GetPageTableVirtualAddress

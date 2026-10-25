@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/core.h"
+#include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_scoped_resource_reservation.h"
 #include "core/hle/kernel/k_system_resource.h"
 
@@ -41,7 +42,7 @@ Result KSecureSystemResource::Initialize(KernelCore& kernel, size_t size, KResou
 
     // Get resource pointer.
     KPhysicalAddress resource_paddr =
-        KPageTable::GetHeapPhysicalAddress(kernel, m_resource_address);
+        GetHeapPhysicalAddress(kernel, m_resource_address);
     auto* resource =
         kernel.System().DeviceMemory().GetPointer<KPageTableManager::RefCount>(resource_paddr);
 

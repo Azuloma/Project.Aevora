@@ -2916,3 +2916,45 @@ The following material was removed from the compact handoff and retained verbati
 - A baseline number in this file can go stale after a runtime commit; re-take it on the commit it will be compared against.
 - From the PowerShell tool run a scratch `.bat` by its absolute path (`cmd.exe /c D:\...\x.bat`); a relative `b.bat` was not found, and Git Bash `cmd.exe /c` with vcvars hung until the tool timed out. Compile standalone tests from a `.bat` written with the Write tool, because a Python heredoc turned `\P`/`\s` in paths into escapes. `rebuild-suyu.bat` finishes in about a minute for one `.cpp`, but the no-JIT tree needed 1674 steps (about 15 minutes) after a merge; start it without `-Wait` and poll the log.
 - Orca: a stalled worker (no output for 10 minutes, terminal exited) cannot be retried while the Task is dispatched. Use `worker-stop --dispatch <id>`, then `task-update --id <task> --status failed`, then `worker-start --task <task> --retry-of <dispatch>` (no `--spec`). `check --wait` can return keepalive lines or replay an old delivery: parse the last JSON object with a `result`, check the sender and subject, and ack the delivery id on the next check. A worker's full report may be in the `worker_done` message body rather than the transcript.
+
+## Archived on 2026-10-25 from WORK_PLAN.md (session 49 cleanup)
+
+Moved when the work plan was condensed for the next session. The live plan keeps the current status, the next actions, and short pointers to this section.
+
+### Commit list (as of dev16)
+
+Commits: dev1 `8796a8c`, dev2 `65854f3`, dev3 `ce4bfd6`, dev4 `56db155`, slots rename `8133d92`, dev5 `ca825f8`, dev6 `65a1f15`, dev7 `d051efb`, dev8 `ddfb960`, dev9 `aebd786`, dev10 `4362604`, dev11 `eba359e`, dev12 `ec1fdc2`, dev13 `49370cb`, merge `9ca567a`, dev14 `78c7036`, dev15 `0a974bc`, dev16 `b0e33ec`, docs-only records `5057b57` and `a0174a2`.
+
+### Completed milestones (dev11 to dev15)
+
+
+- dev11 `eba359e`: added the kernel-free physical page pool and unit/mutant coverage.
+- dev12 `ec1fdc2`: added `PhysicalPoolSet`, the default-on native pool backend, and PLA validation.
+- dev13 `49370cb`: shared `ComputeLayout` with `KPageTableBase`, plus unit/mutant coverage and JIT validation.
+- dev14 `78c7036`: added kernel-free `AddressRegions`/`RegionState`, assertions, and unit/mutant coverage.
+- dev15 `0a974bc`: added `KNativeAddressSpace`, lazy fallback `KPageTable`, shared region paths, and native ownership checks.
+
+### Stage 4 table row as of dev17 build
+
+| 4 | 4a-1 (dev11) and 4a-2 (dev12) committed and PLA-validated; 4b-1 (dev13) committed and JIT-validated; 4b-2 dev14 `78c7036` committed; 4b-3 dev15 `0a974bc` committed; the user declared its test complete in session 49 (see [dev15 validation](#dev15-validation-session-49)); 4c is designed ([Stage 4c design](N2_DESIGN.md#stage-4c-design-agreed-with-the-user-implementation-not-started)); 4c-1a (dev16) `b0e33ec` is committed with its PLA check deferred, 4c-1b (dev17, the `KPhysicalMemory` rename) is built and uncommitted, and 4c-1c, 4c-2 and 4c-3 await the user's go. |
+
+### 4c-1b record (session 49)
+
+
+Base `b0e33ec` (dev16). `/EP` preprocess baselines of both trees were taken before any source edit (JIT 1,718 translation units, no-JIT 1,616, 2 moc units failing to preprocess in each run, as in earlier runs). The rename changed 23 source files plus two file renames, which forced a CMake reconfigure and a large rebuild. Both host trees rebuilt one at a time with 0 errors (JIT 451 steps, no-JIT 449) and `GIT_REV` `b0e33ec`.
+
+Comparison with `cmp.py` after the rebuild: JIT 439 flagged translation units in 76 distinct signatures, no-JIT 431 in 76. A normalizing check (apply the rename mapping to each "before" text, mask digits, compare with "after") explained 73 of 76 signatures in each tree; the other three in each tree are the `scm_rev.cpp` `GIT_REV`, `g_scm_desc` and `g_build_version` strings changing from `0a974bc` to `b0e33ec`, expected because the reconfigure picks up the dev16 commit. The translation-unit set differs by 2 (the renamed `.cpp`). Not run: any PLA session, the Code reviewer, the full `tests/recompiler_smoke/run.py`, and the structural gate.
+
+Committed as dev17 `ed7886a` (HEAD); both host trees reconfigured and rebuilt (JIT 6 steps, no-JIT 1,674 steps after a reconfigure, 0 errors, `GIT_REV` `ed7886a`). JIT PLA run by the user (`suyu-cmd.exe`, native on): the log shows `suyu | main-ed7886a676-main`, `native_mem enabled` and `native_mem: KPageTable not constructed` at 0.57 s, about 245 s of play, no crash or fatal; this is the dev17 check. The dev16 line `native_mem final ...` was again not in the log: the log ends with `BufferQueue has been abandoned` at 245.7 s although `suyu-cmd` calls `ShutdownMainProcess()` after the loop. Whether the log tail is lost at exit or `KernelCore::Impl::Shutdown` does not reach the new call is not determined, so dev16 stays unverified.
+
+### dev15 validation (session 49)
+
+
+Host trees: both reconfigured and rebuilt at `0a974bc` (`GIT_REV` checked, 0 errors, `suyu.exe` and `suyu-cmd.exe` linked). Logs were copied by the user (`suyu_log_JITon.txt`, `suyu_log_JIToff.txt`, and the export's `user\log\suyu_log_AOTon.txt`).
+
+- JIT native on: `native_mem enabled` and `native_mem: KPageTable not constructed` at 30.36 s; about 270 s of play, no crash or fatal.
+- JIT `SUYU_NATIVE_MEM=0`: no `native_mem` lines; about 250 s of play, no crash. The log does not show the environment variable.
+- No-JIT AOT (`suyu-static-nojit`): the same two lines at 0.52 s; about 352 s of play, no crash or fatal.
+- Not observed: `native_mem final unsupported_ops=... inconsistency=...` in any of the three logs, because each session ended with the window X button (`ForceStop`, then `BufferQueue has been abandoned`). My reading of the code is that `KProcess::Finalize` does not run on that exit; this was not traced through `kernel.Shutdown`. The `unsupported_ops=0` and `inconsistency=0` values for dev15 are therefore unverified, as is optimized-memory use by PLA.
+- Gate (report mode, no-JIT `suyu-cmd-static.exe` with PDB, 1,002,169 symbols): `jit` 0; `kernel_memory` 128 (earlier notes: 127 and 122; the cause of the difference is not investigated); scheduler 170, service_framework 4400, filesystem 1839, hid 2722, audio 1241, gpu_maxwell 6015, emulator_system 88. Report saved as `D:\HisuiWakeBuild\diag\gate_n2_dev15_nojit.txt`.
+- The user declared the dev15 test complete without the clean-quit statistics line and without the gate against 127.

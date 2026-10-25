@@ -18,6 +18,7 @@
 #include "core/hle/kernel/k_native_address_space.h"
 #include "core/hle/kernel/k_native_memory_adapters.h"
 #include "core/hle/kernel/k_page_table.h"
+#include "core/hle/kernel/k_process_layout.h"
 #include "core/hle/kernel/k_scoped_lock.h"
 #include "core/hle/kernel/svc_results.h"
 #include "core/hle/kernel/svc_types.h"
@@ -30,11 +31,6 @@ namespace NativeMemory = Core::NativeMemory;
 
 // Declared in k_thread.h; the IPC copies write to and read from the calling process.
 Core::Memory::Memory& GetCurrentMemory(KernelCore& kernel);
-
-class KProcessPageTable;
-// Drops cached translations of the range in every core's JIT of the process that owns the table.
-void InvalidateInstructionCacheOfProcessTable(KernelCore& kernel, const KProcessPageTable* owner,
-                                              KProcessAddress address, size_t size);
 
 // Native model active: block state is in m_native, layout and Common::PageTable in m_native_space, and
 // m_page_table is never built. Unsupported operations fail with a counted log line.
@@ -337,7 +333,7 @@ public:
                       size_t code_size, KSystemResource* system_resource,
                       KResourceLimit* resource_limit, Core::Memory::Memory& memory,
                       KProcessAddress aslr_space_start) {
-        const size_t address_space_width = KPageTableBase::GetAddressSpaceWidth(as_type);
+        const size_t address_space_width = GetProcessAddressSpaceWidth(as_type);
         if (IsNativeRequested()) {
             if (address_space_width == NativeAddressSpaceWidth) {
                 m_native_space = std::make_unique<KNativeAddressSpace>(m_kernel);
@@ -420,7 +416,7 @@ public:
     }
 
     size_t GetNumGuardPages() const {
-        return KPageTableBase::ProcessNumGuardPages;
+        return ProcessNumGuardPages;
     }
 
     KScopedLightLock AcquireDeviceMapLock() {
@@ -858,7 +854,7 @@ public:
         R_RETURN(m_page_table->UnlockForDeviceAddressSpacePartialMap(address, size));
     }
 
-    Result OpenMemoryRangeForMapDeviceAddressSpace(KPageTableBase::MemoryRange* out,
+    Result OpenMemoryRangeForMapDeviceAddressSpace(KMemoryRange* out,
                                                    KProcessAddress address, size_t size,
                                                    KMemoryPermission perm, bool is_aligned) {
         if (m_native) {
@@ -868,7 +864,7 @@ public:
                                                                       is_aligned));
     }
 
-    Result OpenMemoryRangeForUnmapDeviceAddressSpace(KPageTableBase::MemoryRange* out,
+    Result OpenMemoryRangeForUnmapDeviceAddressSpace(KMemoryRange* out,
                                                      KProcessAddress address, size_t size) {
         if (m_native) {
             return Unsupported("OpenMemoryRangeForUnmapDeviceAddressSpace", GetInteger(address));
@@ -940,7 +936,7 @@ public:
         R_RETURN(m_page_table->UnlockForCodeMemory(address, size, pg));
     }
 
-    Result OpenMemoryRangeForProcessCacheOperation(KPageTableBase::MemoryRange* out,
+    Result OpenMemoryRangeForProcessCacheOperation(KMemoryRange* out,
                                                    KProcessAddress address, size_t size) {
         if (m_native) {
             return Unsupported("OpenMemoryRangeForProcessCacheOperation", GetInteger(address));
@@ -1249,15 +1245,15 @@ public:
     }
 
     KPhysicalAddress GetHeapPhysicalAddress(KVirtualAddress address) {
-        return KPageTableBase::GetHeapPhysicalAddress(m_kernel, address);
+        return Kernel::GetHeapPhysicalAddress(m_kernel, address);
     }
 
     u8* GetHeapVirtualPointer(KPhysicalAddress address) {
-        return KPageTableBase::GetHeapVirtualPointer(m_kernel, address);
+        return Kernel::GetHeapVirtualPointer(m_kernel, address);
     }
 
     KVirtualAddress GetHeapVirtualAddress(KPhysicalAddress address) {
-        return KPageTableBase::GetHeapVirtualAddress(m_kernel, address);
+        return Kernel::GetHeapVirtualAddress(m_kernel, address);
     }
 
     KBlockInfoManager* GetBlockInfoManager() {
