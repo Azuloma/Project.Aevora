@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright 2026 suyu Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+// SPDX-FileCopyrightText: Copyright 2023 yuzu Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
+
 #include "core/hle/kernel/board/nintendo/nx/k_system_control.h"
 #include "core/hle/kernel/k_physical_memory.h"
 #include "core/hle/kernel/k_process.h"
@@ -31,14 +34,12 @@ NativeMemory::AddressSpaceType ToNativeAddressSpaceType(Svc::CreateProcessFlag a
 } // namespace
 
 void KMemoryRange::Open(KernelCore& kernel) {
-    // If the range contains heap pages, open them.
     if (this->IsHeap()) {
         kernel.PhysicalMemory().Open(this->GetAddress(), this->GetSize() / PageSize);
     }
 }
 
 void KMemoryRange::Close(KernelCore& kernel) {
-    // If the range contains heap pages, close them.
     if (this->IsHeap()) {
         kernel.PhysicalMemory().Close(this->GetAddress(), this->GetSize() / PageSize);
     }

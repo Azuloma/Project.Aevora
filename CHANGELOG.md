@@ -2,6 +2,18 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.3-dev19 - Unreleased
+
+*Development entry 19 toward v0.0.3. Not a release; no build artifacts are published.*
+
+### Changed
+
+- Applied the Code reviewer findings for the 4c-1c move (`0612230`): `k_process_layout.{h,cpp}` now carry the yuzu SPDX header of the code moved from `k_page_table_base`, and the two redundant comments on `KMemoryRange::Open`/`Close` are removed. No code change.
+
+### Verification
+
+- Code reviewer (Codex, read-only) checked that every moved body matches the original apart from whitespace and renames, found no name-lookup or removed-method problems, and reported these two items (P2 SPDX, P3 comments). Header and comment edits only; the host trees were not rebuilt for them.
+
 ## v0.0.3-dev18 - Unreleased
 
 *Development entry 18 toward v0.0.3. Not a release; no build artifacts are published.*

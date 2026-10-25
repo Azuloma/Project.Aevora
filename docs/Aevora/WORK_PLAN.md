@@ -26,8 +26,8 @@ Stage 4c delivery state:
 |---|---|---|
 | 4c-1a (dev16 `b0e33ec`) | Log `native_mem final unsupported_ops=... inconsistency=...` from `KernelCore::Impl::Shutdown` as well as `Finalize` | Committed and built. **Not verified**: the line was absent from the log in the JIT run after it (see Open items). |
 | 4c-1b (dev17 `ed7886a`) | Pure rename `KMemoryManager` to `KPhysicalMemory` (`Pool`, `Direction`, `EncodeOption`, files `k_physical_memory.{h,cpp}`, accessor `KernelCore::PhysicalMemory()`) | Committed. `/EP` comparison on both trees explained all differences (73 of 76 signatures by the rename, 3 by the git hash); one JIT PLA run passed (start-up lines, about 245 s, no crash). |
-| 4c-1c (dev18) | Move the other `KPageTable` name matches out of shared code into `k_process_layout.{h,cpp}`: `Heap*` conversions, `ComputeProcessLayout`, `ComputeAliasRegionExtraSize`, `ProcessNumGuardPages`, `GetAddressSpaceWidth` (now `GetProcessAddressSpaceWidth`), `InvalidateInstructionCacheOfProcessTable`, `KPageTableBase::MemoryRange` (now `KMemoryRange`) | Implemented in the working tree (session 50); JIT and no-JIT host trees built with 0 errors. Not done: `/EP` baseline (edited first), Code reviewer, gate run on a fresh no-JIT launcher, PLA session. Uncommitted. |
-| 4c-2 (dev19) | Drop `KPageTable`, `KPageTableBase`, `KMemoryBlockManager`, `KPageTableManager` and the system-resource managers from the `SUYU_NO_JIT` sources; counted fail-fast stubs (optimized memory, non-39-bit spaces, `SUYU_NATIVE_MEM=0`); acceptance `structural_gate.py --require-absent N2` on a no-JIT launcher, then a no-JIT AOT PLA run | Not started. |
+| 4c-1c (dev18, review fixes dev19) | Move the other `KPageTable` name matches out of shared code into `k_process_layout.{h,cpp}`: `Heap*` conversions, `ComputeProcessLayout`, `ComputeAliasRegionExtraSize`, `ProcessNumGuardPages`, `GetAddressSpaceWidth` (now `GetProcessAddressSpaceWidth`), `InvalidateInstructionCacheOfProcessTable`, `KPageTableBase::MemoryRange` (now `KMemoryRange`) | dev18 `0612230` committed; both host trees rebuilt at it (0 errors, `GIT_REV` checked). Code reviewer found 2 items (SPDX, comments), fixed in dev19. Not done: `/EP` baseline (edited first), gate run on a fresh no-JIT launcher, PLA session. |
+| 4c-2 (dev20) | Drop `KPageTable`, `KPageTableBase`, `KMemoryBlockManager`, `KPageTableManager` and the system-resource managers from the `SUYU_NO_JIT` sources; counted fail-fast stubs (optimized memory, non-39-bit spaces, `SUYU_NATIVE_MEM=0`); acceptance `structural_gate.py --require-absent N2` on a no-JIT launcher, then a no-JIT AOT PLA run | Not started. |
 | 4c-3 | Remaining gate matches (template instances, lambda names) and doc updates | Not started. |
 
 See [N2_DESIGN.md stage plan and verification](N2_DESIGN.md#stage-plan-and-verification) and the Stage 4c design section for the reasons (the gate matches mangled symbol names by substring, so type names in signatures and classes such as `KPageTableManager` count).
@@ -114,7 +114,7 @@ A stage that changes runtime behaviour also needs the user's PLA session before 
 - Run host reconfigure and build as separate processes; chaining two `vcvars64` calls in one `.bat` stopped silently. After an export, run `rebuild-suyu.bat`.
 
 ## Working rules
-- Per-commit `devN` CHANGELOG entries use `v0.0.3-devN` from dev1 unless the user declares a normal commit; the user makes all commits. The next commit is `v0.0.3-dev18`.
+- Per-commit `devN` CHANGELOG entries use `v0.0.3-devN` from dev1 unless the user declares a normal commit; the user makes all commits. The next commit is `v0.0.3-dev20`.
 - The one-stage-at-a-time report/file-list/commit-message/wait rule applies until the user relaxes it.
 - The user moved `IMGUI_OVERLAY.md` and `CPU_RECOMPILER.md` into `docs/Aevora/RECOMPILE_DETAIL/`; keep new detail documents there and link them from CODEBASE_INDEX.md.
 
