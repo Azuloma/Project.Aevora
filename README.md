@@ -26,10 +26,6 @@
 > In the expected setup, the user will need to provide the base game's NSP file and corresponding update files separately. The user will also need to provide the key and any necessary firmware, which are not included with Aevora.
 > Furthermore, <strong>we do not condone the use of pirated sources on the internet to obtain these files. Please dump and acquire them from your own Switch.</strong>
 
-## About Issue and Feature requests
-
-Please report any issues related to Aevora to [BUG_REPORT](https://github.com/Azuloma/Project.Aevora/blob/main/.github/ISSUE_TEMPLATE/bug_report.yml) and feature requests to [FEATURE_REQUEST](https://github.com/Azuloma/Project.Aevora/blob/main/.github/ISSUE_TEMPLATE/feature_request.yml)
-
 ## Status
 
 We've established a milestone to completely remove Suyu branding and make the project function exclusively as Aevora and a static recompiler for PLA. Work on this is currently underway.([ROADMAP](docs/Aevora/NATIVE_ROADMAP.md))<br>
