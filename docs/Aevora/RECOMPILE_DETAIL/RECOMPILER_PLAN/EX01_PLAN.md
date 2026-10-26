@@ -187,6 +187,25 @@ Fields: `schema` (integer), `commit`, `branch`, `backend`, `split_main`, `option
 
 Implemented form (S0, session 53): `cache` is flat (`cache_outcome`, `cache_publish`, `cache_reused`, no `layers` yet); `commit`, `branch`, `build`, `backend`, `split_main`, and `completed` are top-level strings; stage `label` names the module for `module_build`; `sizes` holds `launcher`, `dll`, `entry`, `work_tree`, and `package` when each exists. The file name is fixed, so copy it after each export. Stages not yet named: registry/module selection (row 8) and the removal of `nso/`.
 
+### 7.5.1 Baseline A1 (no-JIT, split, first cold export; one run)
+
+Commit `18bd9a9` plus the uncommitted sampler fix, PLA 1.1.1, i5-12400F, empty cache entry, Defender state not recorded, nothing else run. File copy: `D:\HisuiWakeBuild\scratch\EX01\A1\export_timing.json`. Total 3,175 s (52.9 min).
+
+| Stage | Seconds | Share |
+|---|---|---|
+| `module_build` main | 2,361 | 74.3% |
+| `module_build` sdk / subsdk1 / subsdk0 / rtld | 263 / 239 / 151 / 2.5 | 20.6% together |
+| `lift_emit` | 33.1 | 1.0% |
+| `launcher_configure` / `launcher_build` | 20.2 / 28.9 | 1.5% |
+| `artifact_collect` | 20.8 | 0.7% |
+| `package` | 26.9 | 0.8% |
+| `cache_publish` | 15.7 | 0.5% |
+| `manifest_write`, `toolchain_env`, `module_configure`, `clang_self_test`, `nso_analysis`, `input_hash`, `validate` | 0.2 to 3.7 each | under 0.5% each |
+
+Units: 841 (main 663, sdk 67, subsdk0 41, subsdk1 68, rtld 2), 5.1 GB of generated C, largest unit 8.1 MB. Sizes: DLL 1.81 GB, launcher 0.51 GB, cache entry 2.31 GB, package 2.32 GB, work tree 7.46 GB. I/O: 5.9 GB hashed, 4.6 GB copied. Peak: process-tree working set 8.4 GB; system commit 22.1 GB (whole machine). Stages cover 3,173 of 3,175 s. Reading: the module compile is 95% of an export; everything the cache-key and I/O stages (S1, S2) can save is about 100 s (about 3%) of a cold export, and matters for warm exports, not for A. Scenarios B-E are not measured yet.
+
+A2 (same conditions, second cold export, copy in `scratch\EX01\A2\`): total 2,915 s (48.6 min), 8.2% below A1. `module_build` main 2,190 s (75.1%), sdk 236, subsdk1 217, subsdk0 138, rtld 2.2; `lift_emit` 25.6, `launcher_build` 28.2, `package` 21.8, `artifact_collect` 17.4, `cache_publish` 13.6. Units, sizes, and hashed/copied bytes are identical to A1 (841 units, 5.92 GB hashed, 4.64 GB copied); peak working set 8.2 GB, system commit 24.4 GB. The two cold runs differ by 260 s, almost all in the compile stages, so any later gain below about 10% of a cold export is inside run-to-run noise with two samples; the plan's three-run median needs at least one more cold run for such claims.
+
 ### 7.6 Targets
 
 Performance targets are set after the baseline exists. No percentage is promised before then.

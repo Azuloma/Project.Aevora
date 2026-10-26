@@ -6,14 +6,47 @@
 // Samples the export process tree's working set and the system commit charge for
 // ExportTiming. The peak is the largest sample, so a spike shorter than the interval is missed.
 
+#include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "suyu/export_timing.h"
+
+namespace ExportTiming {
+
+using ChildrenMap = std::unordered_map<std::uint32_t, std::vector<std::uint32_t>>;
+
+/// `root` and every process below it. Process ids are reused, so the parent links can form a
+/// cycle; each id is visited once.
+inline std::vector<std::uint32_t> CollectProcessTree(std::uint32_t root,
+                                                     const ChildrenMap& children) {
+    std::vector<std::uint32_t> tree;
+    std::unordered_set<std::uint32_t> seen{root};
+    std::vector<std::uint32_t> pending{root};
+    while (!pending.empty()) {
+        const std::uint32_t pid = pending.back();
+        pending.pop_back();
+        tree.push_back(pid);
+        const auto found = children.find(pid);
+        if (found == children.end()) {
+            continue;
+        }
+        for (const std::uint32_t child : found->second) {
+            if (seen.insert(child).second) {
+                pending.push_back(child);
+            }
+        }
+    }
+    return tree;
+}
+
+} // namespace ExportTiming
 
 #ifdef _WIN32
 
 #include <atomic>
 #include <thread>
-#include <unordered_map>
-#include <vector>
 
 #include <windows.h>
 #include <tlhelp32.h>
@@ -45,22 +78,15 @@ public:
         std::uint64_t tree_working_set_bytes = 0;
         const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snapshot != INVALID_HANDLE_VALUE) {
-            std::unordered_map<DWORD, std::vector<DWORD>> children;
+            ChildrenMap children;
             PROCESSENTRY32W entry{sizeof(entry)};
             for (BOOL more = Process32FirstW(snapshot, &entry); more;
                  more = Process32NextW(snapshot, &entry)) {
                 children[entry.th32ParentProcessID].push_back(entry.th32ProcessID);
             }
             CloseHandle(snapshot);
-            std::vector<DWORD> pending{GetCurrentProcessId()};
-            while (!pending.empty()) {
-                const DWORD pid = pending.back();
-                pending.pop_back();
+            for (const std::uint32_t pid : CollectProcessTree(GetCurrentProcessId(), children)) {
                 tree_working_set_bytes += WorkingSetBytes(pid);
-                const auto found = children.find(pid);
-                if (found != children.end()) {
-                    pending.insert(pending.end(), found->second.begin(), found->second.end());
-                }
             }
         }
         PERFORMANCE_INFORMATION info{sizeof(info)};

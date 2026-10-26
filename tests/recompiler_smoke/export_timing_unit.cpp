@@ -1,6 +1,8 @@
 // smoke_export_timing_unit: the record, validator, and JSON of suyu/export_timing.h (EX01 S0).
+#include <cstdint>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 #include "suyu/export_timing.h"
 #include "suyu/export_timing_sampler.h"
@@ -122,6 +124,36 @@ int ScopeClosesItsStage() {
     return 0;
 }
 
+// Negative control: the walk without a visited set; the step cap makes a cycle fail fast.
+bool NaiveWalkFinishes(std::uint32_t root, const ExportTiming::ChildrenMap& children) {
+    std::vector<std::uint32_t> pending{root};
+    for (int steps = 0; steps < 1000; ++steps) {
+        if (pending.empty()) {
+            return true;
+        }
+        const std::uint32_t pid = pending.back();
+        pending.pop_back();
+        const auto found = children.find(pid);
+        if (found != children.end()) {
+            pending.insert(pending.end(), found->second.begin(), found->second.end());
+        }
+    }
+    return false;
+}
+
+int ProcessTreeSurvivesReusedIds() {
+    ExportTiming::ChildrenMap children;
+    children[10] = {20, 30};
+    children[20] = {40};
+    children[40] = {10}; // an id reused as the root's own ancestor
+    children[30] = {30}; // an id that is its own parent
+    CHECK(!NaiveWalkFinishes(10, children));
+    const auto tree = ExportTiming::CollectProcessTree(10, children);
+    CHECK(tree.size() == 4);
+    CHECK(ExportTiming::CollectProcessTree(99, children).size() == 1);
+    return 0;
+}
+
 #ifdef _WIN32
 int SamplerSeesTheProcess() {
     auto& recorder = ExportTiming::Global();
@@ -142,6 +174,7 @@ int main() {
     CHECK(WellFormedRecordValidatesAndSerializes() == 0);
     CHECK(BadRecordsAreRejected() == 0);
     CHECK(ScopeClosesItsStage() == 0);
+    CHECK(ProcessTreeSurvivesReusedIds() == 0);
 #ifdef _WIN32
     CHECK(SamplerSeesTheProcess() == 0);
 #endif

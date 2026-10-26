@@ -7247,10 +7247,15 @@ public:
 #endif
     }
     ~ExportTimingSession() {
+        Finish();
+    }
+    /// Closes the record and writes the file; later calls do nothing.
+    void Finish() {
         auto& recorder = ExportTiming::Global();
-        if (!recorder.Enabled()) {
+        if (finished_ || !recorder.Enabled()) {
             return;
         }
+        finished_ = true;
         total_.reset();
 #ifdef _WIN32
         sampler_.reset();
@@ -7274,6 +7279,7 @@ public:
 
 private:
     FillFinal fill_final_;
+    bool finished_ = false;
     std::optional<ExportTiming::StageScope> total_;
 #ifdef _WIN32
     std::optional<ExportTiming::ProcessTreeSampler> sampler_;
@@ -7564,7 +7570,7 @@ void GameExportDialog::OnExport() {
 
     std::filesystem::path timing_package_path;
     bool timing_completed = false;
-    const ExportTimingSession timing_session{[&](ExportTiming::Recorder& recorder) {
+    ExportTimingSession timing_session{[&](ExportTiming::Recorder& recorder) {
         recorder.SetField("commit", Common::g_scm_rev);
         recorder.SetField("branch", Common::g_scm_branch);
 #ifdef SUYU_NO_JIT
@@ -8237,6 +8243,7 @@ void GameExportDialog::OnExport() {
 
     timing_package_path = promoted.final_path;
     timing_completed = true;
+    timing_session.Finish();
     export_button->setEnabled(true);
     status_label->setText(tr("Export completed: %1").arg(final_path));
     emit ExportFinished(true, final_path);
