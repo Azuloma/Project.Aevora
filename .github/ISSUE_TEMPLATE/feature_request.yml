@@ -1,0 +1,56 @@
+name: Feature request
+description: "Suggest an improvement to Aevora for Pokemon Legends: Arceus."
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing requests and read the [native roadmap](https://github.com/project-aevora/project.aevora-main/blob/main/docs/Aevora/NATIVE_ROADMAP.md) first.
+        Submit one proposal per issue. Describe the user need and the behavior you want; implementation details are optional.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Area of improvement
+      options:
+        - Recompiler or export
+        - Game runtime
+        - Graphics or shaders
+        - Audio
+        - Input or controllers
+        - Launcher or settings
+        - Mods or save management
+        - Documentation
+        - Other or unsure
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what limitation are you encountering? Explain who would benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe how the feature should work from the user's perspective. Include an example if helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe workarounds or other approaches you have considered, and their limitations.
+  - type: textarea
+    id: related-work
+    attributes:
+      label: Related issues or roadmap items
+      description: Link related requests or roadmap milestones, if any. Explain what this proposal adds to existing plans.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add examples or mockups if useful. Remove personal information and do not upload game files, assets, keys, firmware, saves, memory dumps, or generated game exports.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Aevora project information
+    url: https://github.com/project-aevora/project.aevora-main
+    about: Read the project README, current platform support, and source code.
+  - name: Native roadmap
+    url: https://github.com/project-aevora/project.aevora-main/blob/main/docs/Aevora/NATIVE_ROADMAP.md
+    about: Check planned work before requesting a feature.

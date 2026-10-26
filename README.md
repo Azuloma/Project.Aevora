@@ -17,8 +17,6 @@
   <a href="#Status">Status</a> |
   <a href="#Features">Features</a> |
   <a href="#License">License</a><br>
-  <a href="https://github.com/project-aevora/project.aevora-nightly">Nightly Build</a> |
-  <a href="https://github.com/project-aevora/project.aevora-issue-tracker">Issue Tracker</a>
 <p>
 
 > [!IMPORTANT]
@@ -27,6 +25,10 @@
 > [!NOTE]
 > In the expected setup, the user will need to provide the base game's NSP file and corresponding update files separately. The user will also need to provide the key and any necessary firmware, which are not included with Aevora.
 > Furthermore, <strong>we do not condone the use of pirated sources on the internet to obtain these files. Please dump and acquire them from your own Switch.</strong>
+
+## About Issue and Feature requests
+
+Please report any issues related to Aevora to "Test 1" and feature requests to "Test 2".
 
 ## Status
 

@@ -1,0 +1,106 @@
+name: Bug report
+description: Report a problem with Aevora's recompiler, runtime, tools, or documentation.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search open and closed issues before submitting, and report one problem per issue.
+        Remove personal information from logs and attachments. Do not upload game files, assets, keys, firmware, saves, memory dumps, or generated game exports.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected area
+      options:
+        - Recompiler or export
+        - Game runtime
+        - Graphics or shaders
+        - Audio
+        - Input or controllers
+        - Launcher or settings
+        - Documentation
+        - Other or unsure
+    validations:
+      required: true
+  - type: input
+    id: aevora-version
+    attributes:
+      label: Aevora version or commit
+      description: Include the exact version or commit hash. For an exported application, also include its build identity if available. Enter Unknown if you cannot find it.
+      placeholder: Version tag or full commit hash
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      description: Selecting a platform does not imply that it is supported. Check the main repository for current support.
+      options:
+        - Windows
+        - Linux
+        - Other (specify below)
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: System details
+      description: Include your OS version, CPU, GPU, graphics driver, and RAM where relevant. For build or export problems, include the compiler and toolchain versions if known.
+      placeholder: |
+        OS version:
+        CPU:
+        GPU and driver:
+        RAM:
+        Toolchain (if relevant):
+  - type: input
+    id: game-version
+    attributes:
+      label: Game update version
+      description: For gameplay or export problems, specify the PLA update version, or enter Unknown.
+  - type: dropdown
+    id: execution-mode
+    attributes:
+      label: Execution mode
+      options:
+        - Strict static AOT
+        - Hybrid AOT + JIT
+        - JIT comparison build
+        - Not applicable or unknown
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: What happened?
+      description: Describe the problem and any error message. For an export failure, identify the failing stage. Mention how often the problem occurs.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the shortest sequence that reproduces the problem. Include the location in game or the export options where relevant.
+      placeholder: |
+        1. Start Aevora with ...
+        2. Open or select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: settings-and-comparisons
+    attributes:
+      label: Settings, mods, and comparisons
+      description: List relevant settings and mods. For performance reports, include the frame cap, graphics settings, measurement method, and results under matching conditions. Mention whether the problem occurs without mods or custom settings, if checked.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, and additional context
+      description: Paste relevant sanitized log excerpts or attach a sanitized log or screenshot. Remove private paths, credentials, and game-derived dumps before posting.
