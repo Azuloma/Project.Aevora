@@ -28,7 +28,7 @@
 
 ## About Issue and Feature requests
 
-Please report any issues related to Aevora to "Test 1" and feature requests to "Test 2".
+Please report any issues related to Aevora to [BUG_REPORT](https://github.com/Azuloma/Project.Aevora/blob/main/.github/ISSUE_TEMPLATE/bug_report.yml) and feature requests to [FEATURE_REQUEST](https://github.com/Azuloma/Project.Aevora/blob/main/.github/ISSUE_TEMPLATE/feature_request.yml)
 
 ## Status
 
