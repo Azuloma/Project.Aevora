@@ -5911,8 +5911,8 @@ inline RecompileStats EmitProject(const std::string& mod, const u8* text, size_t
        << "option(RECOMP_BUILD_STATIC_LIB \"build the static library for a host link\" ON)\n\n"
        // Job count has to be bounded by memory, not cores. Real MSVC cl.exe
        // failed with "C1060: compiler is out of heap space" on large units, so
-       // it keeps an 8 GB per-compile budget. Measured with clang-cl, ~22 MB
-       // units peak at ~1.3 GB, so other compilers get 1.5 GB per compile.
+       // it keeps an 8 GB per-compile budget. clang-cl peaked at 729 MB per
+       // compile on 8 MB units (~1.3 GB on 22 MB), so others get 1 GB.
        // 4 GB stays reserved for the OS and the running emulator. Overrides:
        // SUYU_RECOMP_JOB_MEMORY_MB (budget), SUYU_RECOMP_JOBS (job count), or
        // -DRECOMP_JOBS.
@@ -5921,7 +5921,7 @@ inline RecompileStats EmitProject(const std::string& mod, const u8* text, size_t
        << "if(MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL \"Clang\")\n"
        << "  set(_recomp_job_mb 8192)\n"
        << "else()\n"
-       << "  set(_recomp_job_mb 1536)\n"
+       << "  set(_recomp_job_mb 1024)\n"
        << "endif()\n"
        << "if(DEFINED ENV{SUYU_RECOMP_JOB_MEMORY_MB} AND\n"
           "   \"$ENV{SUYU_RECOMP_JOB_MEMORY_MB}\" MATCHES \"^[1-9][0-9]*$\")\n"

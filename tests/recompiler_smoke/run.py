@@ -19,12 +19,14 @@ import tempfile
 # All three recomputed for the recomp_lookup rewrite and the 32-bit block index: only the index unit,
 # recomp_export.c and the CMake symbol renames moved.
 # Recomputed again when macOS wording left the generated CMake and runtime-header comments.
-ABI5_GOLDEN = "cc1e63f542d7b38360417aa91b47b81c4e90b6700f0aa432d5a2c526fbd2fd30"
+# v0.0.4-dev3: all three recomputed for the clang compile budget 1536 -> 1024 MB; only the
+# generated CMakeLists.txt (module and second) moved, one line each.
+ABI5_GOLDEN = "a7306bb516bd6562f4f40e93a95512b3dc88f98477b470a55f4f4224f53a8ed2"
 # The same for ABI 6 with FM1 alone (GG1, FPX1 off) and with FM1 and FPX1 on, tracked so any change is
 # deliberate; GG1's switch-off contract (DESIGN.md sec 0) guarantees it does not move these.
 # FPX_GOLDEN also covers the FZ-aware FPX1 helpers (v0.0.1-dev8).
-FM1_GOLDEN = "bd48d916e65341075d45a6592bd442edd32e4bb56a0518c1408308c825bcf78f"
-FPX_GOLDEN = "78e8ef1554974d72ea5629ed5859fdc5108d7528decf71ea962e13ab0680efa6"
+FM1_GOLDEN = "783be781b86548045089d216b9a80d5041b146cd1485bbd68fef246b97ece832"
+FPX_GOLDEN = "627a1a4e07a0e37b810d3a0263f7e90ef422226d94b52a790b2c96f73bcc1a48"
 
 # ABI 6 changes only these files; the block sources must be identical.
 ABI6_CHANGED = {"CMakeLists.txt", "recomp_export.c", "recomp_runtime.c", "recomp_runtime.h"}

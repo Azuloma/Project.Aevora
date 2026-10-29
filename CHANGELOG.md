@@ -2,6 +2,19 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.4-dev3 - Unreleased
+
+*Development entry 3 toward v0.0.4. Not a release; no build artifacts are published.*
+
+### Changed
+
+- The generated CMake sizes the module compile pool with 1,024 MB per clang compile instead of 1,536 MB (`(RAM - 4 GB) / budget`, capped at the logical core count; `cl.exe` keeps 8 GB, and `SUYU_RECOMP_JOB_MEMORY_MB` and `SUYU_RECOMP_JOBS` still override). On a 16 GB, 12-thread PC the pool goes from 7 to 11 concurrent compiles. Measured (EX01, same commit, cold no-JIT split PLA export): `main` compile 2,358 s at 7 jobs, 2,021 s at 10, 1,952 s at 12; per `clang-cl` process the working set peaked at 729 MB on the 8 MB units, and free RAM stayed above 2.0 GB at 10 jobs and 1.27 GB at 12. The generated text changes only in `CMakeLists.txt` (module and `second`), one line each.
+- Replaced the seven-line comment above the module build in `game_export.cpp` with two lines that point to the generator.
+
+### Verification
+
+- Old and new `smoke_export` output compared for the ABI 5, ABI 6 FM1, and FM1+FPX1 trees: only `CMakeLists.txt` differs, by that one line; the old hashes matched the old goldens before the edit. `ABI5_GOLDEN`, `FM1_GOLDEN`, and `FPX_GOLDEN` in `tests/recompiler_smoke/run.py` are recomputed and match the new trees. The full `run.py` was not run (it still stops on the intermittent `smoke_native_set_*` build error), and no host build or export has used the new default yet.
+
 ## v0.0.4-dev2 - Unreleased
 
 *Development entry 2 toward v0.0.4. Not a release; no build artifacts are published.*
@@ -12,7 +25,7 @@ All notable changes to Aevora are recorded here. Versions follow the scheme in [
 
 ### Verification
 
-- Not built and not run yet: the no-JIT host rebuild and an export with timing on are still needed to confirm the file appears.
+- The no-JIT host tree (`msvc-release-nojit`) builds `suyu` and `suyu-cmd` at this commit. A cold no-JIT split PLA export with timing on wrote `export_timing_ninja_log.txt` (855 rows, 663 `main` units) next to `export_timing.json`.
 
 ## v0.0.4-dev1 - Unreleased
 

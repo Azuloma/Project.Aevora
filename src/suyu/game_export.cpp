@@ -5804,13 +5804,8 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                             "module_build", m.toStdString()};
                         QProcess p;
                         p.setProcessEnvironment(vs_env);
-                        // No --parallel cap here: the generated CMakeLists put
-                        // every unit in a Ninja pool sized by RAM minus a 4 GB
-                        // reserve, at 8 GB per cl.exe compile or 1.5 GB per
-                        // clang compile (see SUYU_RECOMP_JOBS). cl.exe spreads
-                        // one unit's code generation over several threads and
-                        // clang-cl does not, so at
-                        // the MSVC path's 2 jobs clang-cl took ~40% longer.
+                        // No --parallel cap: the generated CMakeLists size the Ninja
+                        // compile pool from RAM (see SUYU_RECOMP_JOBS in arm64_to_c.h).
                         int rc = RunProcessDrained(
                             p, clang_cmake,
                             {QStringLiteral("--build"), clang_dir, QStringLiteral("--target"),
