@@ -3305,3 +3305,41 @@ A stage that changes runtime behaviour also needs the user's PLA session before 
 
 #### Context and token practice
 Start a new session or `/compact` at stage boundaries/before breaks; read with offset/limit, print only extracted worker fields, and use one blocking `check --wait`. Read `N2_DESIGN.md` by section; this file plus the CLAUDE.md "Resuming work" paragraph are the only required reading to resume.
+
+## Archived on 2026-10-29 from WORK_PLAN.md (session 53 cleanup)
+
+Verbatim: the session 52 Status block, the Session 52 summary, and the Immediate next action list as it stood at the end of session 53 (items 0 to 0d are the session 53 interim notes, superseded by the new WORK_PLAN).
+
+## Status
+
+HEAD is `a6053a6` (N2 Stage 5 results and `NATIVE_MEMORY.md`, a normal commit); the last code commit is dev21 `4736362`. **Uncommitted Markdown at the end of session 52** (the user commits): `README.md`, `NATIVE_ROADMAP.md`, `OLD_HISTORY.md`, `WORK_PLAN.md`, `CODEBASE_INDEX.md`, `CPU_RECOMPILER.md`, the deletion of `docs/Aevora/N0_INVENTORY.md` and `N2_DESIGN.md` with the untracked `NATIVEIZATION_HISTORY/` that now holds them, and the new `RECOMPILE_DETAIL/RECOMPILER_PLAN/EX01_PLAN.md`; `CLAUDE.md` is git-ignored. No source file changed in session 52.
+
+**Host trees:** JIT `msvc-release` was built at `adfcac5`; no-JIT `msvc-release-nojit` was configured at `f2bcc9c` and built from `4736362` sources. Runtime code is identical to dev21 in both (later commits changed Markdown and comments only). Reconfigure both trees before any export that must carry a current `GIT_REV` (the AOT cache keys on commit and branch).
+
+**Version line:** the project moves to **v0.0.4**. The user agreed that the first dev entry is `v0.0.4-dev1`; the v0.0.3 count ended at dev21. CHANGELOG sections for the next code commit use `v0.0.4-dev1`.
+
+## Session 52 summary (what was done)
+
+Read-only investigation and planning; no code, build, export, or commit. The export pipeline was read end to end (`game_export.cpp` `RunAotPrecompile` 4088, `PackageNativeExport` 6524, `OnExport` 7373; `arm64_to_c.h` `EmitProject` and generated CMake; `aot_export_cache.*`; `recomp_modules/CMakeLists.txt`; `suyu_cmd/CMakeLists.txt`) and the existing PLA cache entry was inspected (metadata only). Result: [EX01_PLAN.md](RECOMPILE_DETAIL/RECOMPILER_PLAN/EX01_PLAN.md) with findings F1-F13, candidate evaluation, a layered cache-key design (L1-L4, keys K0-K5), the measurement plan, and stages S0-S6. Headline findings:
+
+- A new commit invalidates the whole cache entry although the DLL depends only on generated C (F1); the entry keeps no sources or objects.
+- Cache gaps: `SUYU_AOT_EXTRA_ROOTS`, `SUYU_RECOMP_UNIT_*`, compiler identity, and optimization flags are not keyed (F2); generator identity is a hand-edited string (F3); the manifest is compared by substring (F4).
+- `recomp_clang/` is deleted every export, modules build one at a time, and lift is serial (F5, F6); block discovery runs twice (F7); the 1.8 GB DLL is copied and hashed several times (F8).
+- No current-configuration timing exists. Older numbers (223 units about 3.4 h at one job; 881 units about 46 min at seven; `main` DLL 40.7/47.8 min without/with FMI) are context only.
+- Doc fixes made: the "records `O2`" compiler-name defect is gone (code records compiler, version, path); index paths for the moved N0/N2 documents repaired.
+- ScarletNX: only its README was read; no revision could be pinned (many identical forks); no code cloned or built; no speed-up is taken from it.
+
+## Immediate next action
+
+0. **Session 53: EX01 S0 instrumentation is written, uncommitted (the user commits).** Files: `src/suyu/export_timing.h`, `export_timing_sampler.h`, `game_export.cpp` (scopes, byte counters, `ExportTimingSession`), `src/suyu/CMakeLists.txt` (two headers), `tests/recompiler_smoke/` (`export_timing_unit.cpp`, CMake, `run.py`), CHANGELOG `v0.0.4-dev1`, CODEBASE_INDEX, EX01_PLAN 7.5. Verified: unit test passes, weakened-validator mutant fails fast, no-JIT tree builds. Not done: Code reviewer pass, full `run.py`, any export. `export_timing.json` goes to the log folder (the plan's default; the user said go without objecting). The user must commit, then reconfigure the no-JIT tree (`configure-msvc-release-nojit.bat`, about 1 hour) before baseline exports so `GIT_REV` is current.
+0a. **Committed `18bd9a9` (S0); a sampler fix is uncommitted.** The first sampler looped forever when process ids were reused (found in the first run; `CollectProcessTree` now keeps a visited set, `ExportTimingSession::Finish()` closes the record at promote). Baseline A1 (3,175 s) and A2 (2,915 s) are recorded in EX01_PLAN 7.5.1; the compile of `main` is about 75% of a cold export. Start the instrumented host with `D:\HisuiWakeBuild\diag\run_suyu_nojit_timing.bat`; a restart without it drops the timing. The cache entry from A2 is still published.
+0b. **Measured so far (EX01_PLAN 7.5.1):** A1 3,175 s, A2 2,915 s, A3 4,795 s (a 1,664 s `launcher_build` after a commit: `.ninja_log` shows it rebuilt 339 `core` objects; the cause of that invalidation is open), B 57.8 s (cache reused; output hashes equal A3's). A3's package hashes are in `scratch\EX01\A3\package_hashes.txt`.
+0c. **Option-off cold export done (EX01_PLAN 7.5.1, `Aoff`):** hashes differ from A3's because every link stamps a new PE timestamp (no `/Brepro`); sizes and manifest counts and options match. "Byte-identical" is replaced by comparing generated C or a masked PE; this is not a regression.
+0d. **Full `tests/recompiler_smoke/run.py` did not complete (session 53, three tries, log `scratch\EX01\runpy_last.log`):** with the default VS generator the 120 s build timeout in `call()` fires; with `CMAKE_GENERATOR=Ninja` and `--cc clang-cl --cxx clang-cl` the build stops at 160-170 of 418 steps with `error opening 'CMakeFiles\smoke_native_set_<name>.dir\native_pool_set_unit.cpp.obj.d': no such file or directory`, on a different `smoke_native_set_*` target each time (covered, pool_filter, piece_end, free_pool), with temp folders under `scratch\runpy\tmp`, `D:\sm`, and `scratch\t`. Not reproduced as a code failure; the cause is not found (a missing dependency-file directory for the `native_pool_set_unit` mutant targets, possibly a Windows or scanner race). `smoke_export_timing_unit` was built and run standalone and passes. `D:\sm` (empty, cannot be removed by the shell tool) is left for the user to delete.
+1. **Still open for S0:** scenarios C-E, naming the invalidation behind the post-commit `launcher_build` (`ninja -d explain` on a freshly rebuilt tree, read-only dry run), the Code reviewer pass, and the full `run.py`.
+2. **S0 outline** (details in EX01_PLAN section 8): opt-in `SUYU_EXPORT_TIMING=1` writes stage times, peak memory, unit counts, cache outcome, sizes, and hashed/copied bytes; execution-neutral and byte-identical output when off; schema unit test plus a negative control. Then baseline scenarios A-E on the same PC, input (PLA 1.1.1), and commit. Targets are set only after the baseline.
+3. Before editing `game_export.cpp`: check `git status`; a change there rebuilds `suyu` (small) but any CMake source-list change forces a full host rebuild (about 15 minutes); the generator is compiled into the host, so rebuild before export tests.
+4. N3 (native threads and synchronization) and the AOT-versus-JIT CPU gap stay on hold; the user chose EX01 first. Resume them from [NATIVE_ROADMAP.md](NATIVE_ROADMAP.md) and the sections below only on the user's word.
+5. Disk cleanup left to the user's call: `D:\HisuiWakeBuild\backup` (about 5.1 GB of old AOT launchers), `tmp_gt\sym_5bb3381` (941 MB), old launchers under `diag\hotrva` (about 1.2 GB). The persistent cache under `%APPDATA%\suyu\aot_export_cache` holds three entries (about 2.2, 1.7, and 2.2 GB). Delete only on the user's word.
+6. Optional, unscheduled: full `tests/recompiler_smoke/run.py` (needs `CPM_SOURCE_CACHE=D:\HisuiWakeBuild\cpm`), the unresolved GOT/PLT symbols, the `native_physical_pool.h` unit-suffix nit, `CMakeLists.txt` source order after the `k_physical_memory` rename, a Code reviewer pass for N2 4c-1a/1b.
+

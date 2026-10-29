@@ -3552,6 +3552,21 @@ static std::uint64_t PathSizeBytes(const std::filesystem::path& path) {
     return total_bytes;
 }
 
+// Keeps the module build's per-unit times: the next export deletes recomp_clang\.
+static void SaveModuleNinjaLog(const QString& clang_dir) {
+    if (!ExportTiming::Global().Enabled()) {
+        return;
+    }
+    const auto destination = Common::FS::GetSuyuPath(Common::FS::SuyuPath::LogDir) /
+                             "export_timing_ninja_log.txt";
+    std::error_code ec;
+    std::filesystem::copy_file(ToFsPath(clang_dir + QStringLiteral("/.ninja_log")), destination,
+                               std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+        LOG_WARNING(Frontend, "Could not save the module .ninja_log: {}", ec.message());
+    }
+}
+
 // Records how many generated translation units a module has and how large they are.
 static void RecordUnitStats(const QString& module, const std::filesystem::path& source_dir) {
     if (!ExportTiming::Global().Enabled()) {
@@ -5829,6 +5844,7 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                             ok = false;
                         }
                     }
+                    SaveModuleNinjaLog(clang_dir);
                     if (ok) {
                         const ExportTiming::StageScope launcher_configure_stage{
                             "launcher_configure"};

@@ -2,6 +2,18 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.4-dev2 - Unreleased
+
+*Development entry 2 toward v0.0.4. Not a release; no build artifacts are published.*
+
+### Added
+
+- With `SUYU_EXPORT_TIMING=1`, the exporter copies the module build's `recomp_clang\.ninja_log` to `export_timing_ninja_log.txt` in the user-data log folder (fixed name, overwritten by the next export) once the per-module build loop ends, including after a failed module. The next export deletes `recomp_clang\`, so the per-unit compile times (for example the 663 `main` units) were lost before. Unset, nothing is copied; a failed copy logs a warning and the export continues.
+
+### Verification
+
+- Not built and not run yet: the no-JIT host rebuild and an export with timing on are still needed to confirm the file appears.
+
 ## v0.0.4-dev1 - Unreleased
 
 *Development entry 1 toward v0.0.4. Not a release; no build artifacts are published.*
