@@ -79,6 +79,7 @@ Verified details that matter for this plan:
 | F15 | Two separate builds never hash equal. | No `/Brepro`; PE `TimeDateStamp` is the link time. | Compare sizes, manifest counts, or generated C for "unchanged output" checks. |
 | F16 | Compile is 95% of a cold export and `main` alone 75%; S1 and S2 can save about 100 s of a cold run. | Baselines A1-A3 (7.5.1). | Their value is in warm exports (B spends about 56 s hashing and copying 2.3 GB). |
 | F17 | The module compile pool was RAM-derived at 7 jobs on a 12-thread PC, with a 1,536 MB budget per clang compile. | `dev2` ninja log: 7 jobs for 99.2% of `main`; `jobs10`/`jobs12`: clang-cl working set max 729 MB per process on 8 MB units. | Budget 1,024 MB (`v0.0.4-dev3`): 11 jobs, `main` 2,358 s to 1,974 s (-16%). |
+| F18 | The `main` unit compile is back-end bound; the front end (parsing, headers) is 5-12% of a unit. | `-ftime-trace` of 6 `main` units (session 55, `scratch\EX01\timetrace\units\`): front end 3.3-4.9 s of 28-93 s; of the back end (unit 127: 37.0 s) the optimizer is 19.8 s (module inliner 12.3, InstCombine 4.5, GVN 2.6) and code generation 17.2 s (instruction selection 5.9). | A precompiled header (H5) is rejected: it can save at most the 3-5 s front end. Next candidates are inlining control and `/O1`, judged by CPU ms per frame (section 9). |
 
 ### 4.2 Measured history (different configurations; context only)
 
@@ -274,6 +275,7 @@ Each stage is one behavior that can be implemented and verified alone. After eac
 - `-ftime-trace` and precompiled-header trial (candidate 3), launcher link settings (5a), IR front-end share (7).
 - Each experiment ends with a written decision. Acceptance for any code-affecting result includes same-position CPU ms per frame (and p99) versus the baseline, and a golden-hash comparison.
 - Candidate 5b and any IR work need a separate design section and the user's go before code.
+- **Status (session 55): `-ftime-trace` done, decision written; no code changed.** Method: `CFLAGS=-ftime-trace` in a copy of the timing batch file (read at the first configure of a fresh `recomp_clang` tree; probe-verified). `_CL_=-ftime-trace` does not work: the CMake compiler test passes it as a file name, the clang-cl configure fails in all three CMakes, and the export falls back to MSVC `cl.exe` (8,256 s, no trace; its cache entry was emptied). Trace run: 2,856 s total, `main` 2,083 s, 662 `.json` files of 3.1 GB (about 6% over f14fix, within the cold-run spread; times are not compared, only shares). Unit shares (front end / back end): p10 12/88%, p50 11/89%, p90 9/91%, p99 7/93%, longest unit (93.3 s) 5/95%. Decision: no precompiled header (F18). Open: inlining control (the module inliner is about 60% of the optimizer) and `/O1`, each needing a design note, the user's go, and CPU ms per frame with p99 at the same position; the old `/O2` versus `/O1` figure (13% faster for 25% longer compiles) is from MK8D, not PLA.
 
 ## 9. Optimization level policy
 

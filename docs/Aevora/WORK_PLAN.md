@@ -1,6 +1,6 @@
 # Aevora Work Plan
 
-Handoff prepared: 2026-10-29 (end of session 54). Older material is in [OLD_HISTORY.md](OLD_HISTORY.md), newest archive last: [session 54 cleanup](OLD_HISTORY.md#archived-on-2026-10-29-from-work_planmd-session-54-cleanup) (the Status, Session 53 summary, and Immediate next action as they stood, with the dev2/jobs10/jobs12/dev3/F14/f14fix experiment texts, verbatim), then [session 53 cleanup](OLD_HISTORY.md#archived-on-2026-10-29-from-work_planmd-session-53-cleanup), [session 52](OLD_HISTORY.md#archived-on-2026-10-25-from-work_planmd-session-52-cleanup) (the complete session-51 plan) and earlier sections in the same file. `N0_INVENTORY.md` and `N2_DESIGN.md` live in [NATIVEIZATION_HISTORY/](NATIVEIZATION_HISTORY/); archived links to the old paths are not rewritten.
+Handoff prepared: 2026-10-30 (end of session 55). Older material is in [OLD_HISTORY.md](OLD_HISTORY.md), newest archive last: [session 54 cleanup](OLD_HISTORY.md#archived-on-2026-10-29-from-work_planmd-session-54-cleanup) (the Status, Session 53 summary, and Immediate next action as they stood, with the dev2/jobs10/jobs12/dev3/F14/f14fix experiment texts, verbatim), then [session 53 cleanup](OLD_HISTORY.md#archived-on-2026-10-29-from-work_planmd-session-53-cleanup), [session 52](OLD_HISTORY.md#archived-on-2026-10-25-from-work_planmd-session-52-cleanup) (the complete session-51 plan) and earlier sections in the same file. `N0_INVENTORY.md` and `N2_DESIGN.md` live in [NATIVEIZATION_HISTORY/](NATIVEIZATION_HISTORY/); archived links to the old paths are not rewritten.
 
 ## Objective
 
@@ -13,7 +13,7 @@ File map: [CODEBASE_INDEX.md](CODEBASE_INDEX.md).
 
 ## Status
 
-HEAD is `69ed7a3` (`v0.0.4-dev3`). Commits of this line: `18bd9a9` (`v0.0.4-dev1`, opt-in export timing), `f6089f5` (sampler fix, normal commit), `4eec98e` (`v0.0.4-dev2`, module `.ninja_log` kept), `69ed7a3` (`v0.0.4-dev3`, compile pool). **Uncommitted at the end of session 54** (the user commits): the Markdown edits of this session (`WORK_PLAN.md`, `OLD_HISTORY.md`, `RECOMPILER_PLAN/EX01_PLAN.md`); `CLAUDE.md` is git-ignored. No source file is modified. Next dev entry: `v0.0.4-dev4`.
+HEAD is `c92e54e` (Markdown only, on top of `69ed7a3`, `v0.0.4-dev3`). Commits of this line: `18bd9a9` (`v0.0.4-dev1`, opt-in export timing), `f6089f5` (sampler fix, normal commit), `4eec98e` (`v0.0.4-dev2`, module `.ninja_log` kept), `69ed7a3` (`v0.0.4-dev3`, compile pool), `c92e54e` (Markdown). **Uncommitted at the end of session 55** (the user commits): the Markdown edits of this session (`WORK_PLAN.md`, `RECOMPILER_PLAN/EX01_PLAN.md`); `CLAUDE.md` is git-ignored. No source file is modified. Next dev entry: `v0.0.4-dev4`.
 
 **Host trees:** no-JIT `msvc-release-nojit` is built at `69ed7a3` (`GIT_REV` checked) and configured by the Visual Studio CMake 4.3.1; its persistent-cache entry is the `f14fix` export (the cache keys on commit and branch, so the next commit makes it unusable). JIT `msvc-release` is stale (built at `adfcac5`). No `suyu` process was running at the end; the exported PLA package is in `D:\HisuiWakeExports` (about 2.3 GB, local game-derived output).
 
@@ -26,7 +26,8 @@ HEAD is `69ed7a3` (`v0.0.4-dev3`). Commits of this line: `18bd9a9` (`v0.0.4-dev1
 | N3 and later | Not started; on hold until the user's go and a design read. |
 | **EX01 S0 instrumentation and baseline** | **Closed 2026-10-29 (session 54) with exceptions** (scenarios C-E, Code reviewer pass, full `run.py`; list in EX01_PLAN S0 Status). |
 | EX01 compile pool (`dev3`), F14 CMake mismatch (local fix) | Done in session 54. |
-| EX01 S1-S6 | Not started. Agreed next: the `main` module compile (S6 experiments, S3). |
+| EX01 S6 `-ftime-trace` | Done in session 55 (F18): back end about 90% of a unit; no PCH. |
+| EX01 S1-S5, S6 rest | Not started. Agreed next: the `main` module compile (inlining control, `/O1`; design note first). |
 
 ## Session 54 summary (what was done)
 
@@ -48,10 +49,19 @@ Cold no-JIT split export of PLA 1.1.1, same PC and input:
 
 Cache-reused export (scenario B, session 53): 57.8 s. Run-to-run spread of cold runs is about 8%; each condition above was measured once.
 
+## Session 55 summary (what was done)
+
+No source change. Local evidence in `D:\HisuiWakeBuild\scratch\EX01\`: `timetrace\` (`export_timing.json`, `export_timing_ninja_log.txt`, `suyu_log.txt`, `units\` with 6 representative `.json` traces, `stats.csv`, the batch file and collector), `dist_main.py`, `pick_units.py`, `trace_sum.py`, `trace_passes.py`.
+
+1. **Unit-time distribution** (f14fix ninja log, 665 `main` units, 11 jobs): sum 21,174 s, wall 1,941 s (the pool is saturated: sum / 11 = 1,925 s); p50 29.6 s, p90 38.2 s, p99 69.0 s, max 93.4 s; top 10 / 25 / 50 / 100 units carry 3.4 / 7.6 / 13.2 / 22.1% of the sum; the last-started units take 22-43 s, so the tail is short. A longest-first order (S3) is worth about 20-40 s at most.
+2. **`-ftime-trace`** (EX01_PLAN F18 and the S6 status): the front end is 5-12% of a unit, the back end about 90% (inliner, InstCombine, instruction selection). No precompiled header.
+3. **A failed first attempt** is kept as a lesson: `_CL_=-ftime-trace` broke the CMake compiler test, the export silently fell back to MSVC `cl.exe` (8,256 s) and published that entry; use `CFLAGS` (see Lessons).
+4. Cold no-JIT split export with the trace on: 2,856 s total, `main` 2,083 s (f14fix 2,693 / 1,964 s; the difference is within the cold-run spread plus trace output).
+
 ## Immediate next action
 
-1. **The user commits the Markdown of session 54** (a normal commit, no devN). Suggested message: `Close EX01 S0 with exceptions; record F14-F17, the f14fix result and clean up WORK_PLAN`.
-2. **Agreed order (user, session 54), one stage at a time:** S0 closed; next the **`main` module compile**, now 73% of a cold export (1,964 of 2,693 s). Each step needs a design note and the user's go before code. Cheap first look, no export needed: distribution of the 663 `main` unit times in `scratch\EX01\f14fix\export_timing_ninja_log.txt` (median 29.9 s, longest 98 s at 11 jobs; how much of the total the top units carry, and whether one unit finishes last). Then candidates: `-ftime-trace` of one unit (the generated sources are deleted after an export, so a unit must be copied during the next export), flags such as `/O1` versus `/O2` on a few units (a runtime-FPS risk: judge it with CPU ms per frame, not export time), unit size (8 MB today), build order (S3, longest units first). A change to generated text needs the old/new exporter comparison and recomputed goldens first.
+1. **The user commits the Markdown of session 55** (a normal commit, no devN). Suggested message: `Record EX01 S6 -ftime-trace result (F18) and the main unit-time distribution`.
+2. **Agreed order (user, session 54), one stage at a time:** the **`main` module compile** is 73% of a cold export. Done: unit distribution and `-ftime-trace` (no PCH, no gain from ordering). Next candidates, each needing a design note and the user's go before code: (a) inlining control in the generated C (the module inliner is about 60% of the optimizer), (b) `/O1` versus `/O2` on PLA, (c) unit size (8 MB today; only if back-end time is not linear in function count, unverified). All three change generated code or optimization, so judge them by CPU ms per frame and p99 at the same position (EX01_PLAN section 9), not by export time; a change to generated text needs the old/new exporter comparison and recomputed goldens first. The warm-path stages S1/S2 do not shorten a cold export.
 3. **Optional, `v0.0.4-dev4`, needs a design note:** make the exporter reuse the tree's own `CMAKE_COMMAND` before the VS-bundled one (`game_export.cpp` `cmake_candidates`, about line 5553), so a tree configured by another CMake does not rebuild everything. The existing comment warns that the cache record can name an older CMake; decide the version check first. Not needed on this PC after the local fix.
 4. **Export procedure to reproduce a measurement:** empty the cache entry `%APPDATA%\suyu\aot_export_cache\01001f5010dfa000_windows_suyu-static-nojit_split` (the three `.lock` files stay), start the host with `D:\HisuiWakeBuild\diag\run_suyu_nojit_timing.bat` (a plain start drops the timing), export PLA 1.1.1, Static AOT no-JIT, to `D:\HisuiWakeExports`, and do not close `suyu.exe` before it finishes; nothing else heavy meanwhile. Then copy `export_timing.json` and `export_timing_ninja_log.txt` to `scratch\EX01\<tag>\` at once. After a commit: `configure-msvc-release-nojit.bat`, `rebuild-suyu-nojit.bat`, check `GIT_REV` (about 1,700 steps only if the CMake changed; otherwise the rebuild is short). `SUYU_RECOMP_JOBS` and `SUYU_RECOMP_JOB_MEMORY_MB` override the pool for experiments (set them in a copy of the timing batch file).
 5. Leftovers for the user: delete the empty folder `D:\sm`; disk cleanup is the user's call (`D:\HisuiWakeBuild\backup` about 5.1 GB, `tmp_gt\sym_5bb3381` 941 MB, `diag\hotrva` about 1.2 GB).
@@ -105,6 +115,8 @@ Keep diagnostics execution-neutral when off, exact-0 default-on semantics, ABI/r
 - `ninja -n -d explain` is useless right after a reconfigure ("Re-running CMake" hides every later reason). To find why objects rebuild, compare the saved `build.ninja` and `CMakeFiles\rules.ninja` of the two states, or configure two scratch trees with the two tools and diff the normalized rules (`scratch\F14\cmprules.py`).
 - `D:\HisuiWakeBuild\diag\cleanup_scratch.ps1` removes everything under `scratch\` by default, including the cited `scratch\EX01\` baselines; delete only your own task folder (check the path first) or use its `-WhatIf`.
 - PowerShell `'{0:N0}'` writes thousands separators and breaks a CSV (the first clang-memory samples had to be reparsed); use `F0`. A sampler should be tested for its output format before a long run.
+- **Compiler flags for an experiment go in `CFLAGS`, not `_CL_`/`CL`.** The exporter starts from the system environment, so a variable set in the batch file reaches every child. `_CL_` is appended after the file name in CMake's compiler test (`clang-cl: error: no such file or directory`), the clang-cl configure fails, and the export falls back to MSVC `cl.exe` (about 8,256 s), publishing that entry. `CFLAGS` is read at the first configure of a fresh `recomp_clang` tree (verified with a probe); delete `recomp_clang\CMakeCache.txt` afterwards so it does not carry over. A run that takes 3 h instead of 45 min, or whose log says `Recompiled modules compiled with MSVC cl.exe`, is the fallback.
+- Copy `export_timing_ninja_log.txt` only after checking its modification time: when the clang path fails it is not rewritten and the old file is silently copied (the first trace run).
 - When a measurement script gives the same numbers for two inputs, check the input path first (a `sed` path rewrite silently did not apply once).
 
 ## How to proceed
