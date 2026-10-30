@@ -19,6 +19,9 @@
   <a href="#License">License</a><br>
 <p>
 
+> [!CAUTION]
+> **This project is frozen as a legacy version (2026-10-30) and is no longer developed.** The Suyu-derived static recompiler this repository is built on produces stutter and runs poorly, and the same game, Pokémon Legends: Arceus, was later recompiled and ran well with a different recompilation tool (ScarletNX). Whether the cause is the Suyu base or this project's own changes was not isolated. The code, documents, and measurements stay here as a record; do not expect fixes, new features, or support. Any successor is a separate project.
+
 > [!IMPORTANT]
 > At Aevora, we utilize AI-powered coding (including so-called "vibe coding"). Our development is guided by human review and real-world testing, prioritizing code that is easy for humans to understand and maintain. We do not consider AI-generated code or successful compilation alone to be proof that the game is functioning correctly. If you disagree with the use of AI or do not trust AI-written code, that is your right. I do not disagree with or find those opinions unfair.
 
