@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> The project has officially resumed as a new version utilizing ScarletNX, the new repository can be found at "https://github.com/nxaevora/nxaevora-main".
+><br>Thank you for your continued support!
+
 > [!CAUTION]
 > **This project is frozen as a legacy version (2026-10-30) and is no longer developed.** The Suyu-derived static recompiler this repository is built on produces stutter and runs poorly, and the same game, Pokémon Legends: Arceus, was later recompiled and ran well with a different recompilation tool (ScarletNX). Whether the cause is the Suyu base or this project's own changes was not isolated. The code, documents, and measurements stay here as a record; do not expect fixes, new features, or support. Any successor is a separate project.
 
