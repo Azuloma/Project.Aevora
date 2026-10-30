@@ -2,6 +2,27 @@
 
 All notable changes to Aevora are recorded here. Versions follow the scheme in [README.md](README.md#releases-and-versioning): release versions `vX.Y.Z`, development versions `vX.Y.Z-devN`. Development entries are not releases and are not recommended for general use.
 
+## v0.0.4-dev4 - Unreleased
+
+*Development entry 4 toward v0.0.4. Not a release; no build artifacts are published.*
+
+### Added
+
+- `SUYU_RECOMP_OPT_LEVEL` (`O1` or `O2`, default `O2`), read by the generated module CMake at configure time, selects the optimisation level of the generated units for MSVC and clang-cl. Any other value fails the configure and names the value; a non-MSVC compiler refuses `O1`. The exporter's compiler record (`recomp_compiler` in `export_timing.json` and the package metadata) now shows the level in use (`/O1` or `/O2`) instead of a fixed `/O2`. Experimental: the persistent cache does not key on the level, so empty the cache entry before and after an `O1` export. Default behavior is unchanged.
+- `check_opt_level` in `tests/recompiler_smoke/run.py` runs the generated option block under `cmake -P` for unset, `O2`, `O1`, and `O3` (must fail by name), with a negative control that drops the environment read.
+
+### Changed
+
+- The three goldens in `run.py` are recomputed; old and new `smoke_export` output (ABI 5, ABI 6 FM1, FM1+FPX1) differ only in the generated `CMakeLists.txt` (module and `second`), and the old hashes matched the old goldens first.
+
+### Measured (EX01, same build and commit, cold no-JIT split PLA export, 11 compile jobs)
+
+- `/O1` against `/O2`: total 2,550 s against 2,745 s (-7%), `main` 1,885 s against 2,011 s (-6%), `main` DLL 1,676 MB against 1,805 MB; unit time p50 -3%, p99 -22%. Single-process compiles of three units were 20% faster, so the gain shrinks under 11 concurrent compiles. The saving is inside the cold-run spread (about 8%), and `/O1` is expected to cost runtime speed, so it is not adopted and no CPU ms per frame was measured.
+
+### Verification
+
+- The no-JIT host tree builds `suyu` and `suyu-cmd` with the change; both exports above ran on it. The full `run.py` and a Code reviewer pass were not run.
+
 ## v0.0.4-dev3 - Unreleased
 
 *Development entry 3 toward v0.0.4. Not a release; no build artifacts are published.*

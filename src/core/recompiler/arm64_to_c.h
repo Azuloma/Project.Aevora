@@ -5968,6 +5968,19 @@ inline RecompileStats EmitProject(const std::string& mod, const u8* text, size_t
     cm << ")\n\n"
        << "# -O2 (/O2 with MSVC) measured ~13% faster than -O1 on MK8D for ~25% longer compiles.\n"
        << "# MSVC needs /bigobj at /O2: the units exceed the default COFF section limit (C1128).\n"
+       // Experiment switch: SUYU_RECOMP_OPT_LEVEL=O1 trades runtime speed for compile time.
+       << "set(_recomp_opt_level O2)\n"
+       << "if(DEFINED ENV{SUYU_RECOMP_OPT_LEVEL})\n"
+       << "  set(_recomp_opt_level $ENV{SUYU_RECOMP_OPT_LEVEL})\n"
+       << "endif()\n"
+       << "if(NOT _recomp_opt_level MATCHES \"^O[12]$\")\n"
+       << "  message(FATAL_ERROR \"SUYU_RECOMP_OPT_LEVEL must be O1 or O2, got "
+          "'${_recomp_opt_level}'\")\n"
+       << "endif()\n"
+       << "if(NOT MSVC AND NOT _recomp_opt_level STREQUAL \"O2\")\n"
+       << "  message(FATAL_ERROR \"SUYU_RECOMP_OPT_LEVEL=${_recomp_opt_level} needs MSVC or "
+          "clang-cl\")\n"
+       << "endif()\n"
        << "if(MSVC)\n"
        // /MP is what actually decides wall-clock time here. The Visual Studio
        // generator compiles the files of a single project strictly in
@@ -5983,7 +5996,7 @@ inline RecompileStats EmitProject(const std::string& mod, const u8* text, size_t
        // set) turns "unused local" into a hard build failure; the codegen
        // legitimately computes and drops _r on some flag-only paths, so
        // downgrade it back to a warning for generated sources specifically.
-       << "  set(_recomp_msvc_opts \"/O2\" \"/bigobj\" \"/WX-\" \"/wd4127\" \"/wd4723\" \"/wd4102\" "
+       << "  set(_recomp_msvc_opts \"/${_recomp_opt_level}\" \"/bigobj\" \"/WX-\" \"/wd4127\" \"/wd4723\" \"/wd4102\" "
           "\"/wd4101\" \"/wd4189\" \"/wd4456\" \"/wd4457\" \"/wd4459\")\n"
        // FPX1's fast paths need IEEE arithmetic; fast-math compiles them out
        // (RECOMP_FPX_HOST 0), so pin the model rather than inherit one.

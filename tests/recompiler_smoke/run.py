@@ -21,12 +21,13 @@ import tempfile
 # Recomputed again when macOS wording left the generated CMake and runtime-header comments.
 # v0.0.4-dev3: all three recomputed for the clang compile budget 1536 -> 1024 MB; only the
 # generated CMakeLists.txt (module and second) moved, one line each.
-ABI5_GOLDEN = "a7306bb516bd6562f4f40e93a95512b3dc88f98477b470a55f4f4224f53a8ed2"
+# v0.0.4-dev4: all three recomputed for SUYU_RECOMP_OPT_LEVEL; again only CMakeLists.txt moved.
+ABI5_GOLDEN = "f9f6dd4c4164f4c11f50617c759ae8e782aa529723b3424a597f825616ea0243"
 # The same for ABI 6 with FM1 alone (GG1, FPX1 off) and with FM1 and FPX1 on, tracked so any change is
 # deliberate; GG1's switch-off contract (DESIGN.md sec 0) guarantees it does not move these.
 # FPX_GOLDEN also covers the FZ-aware FPX1 helpers (v0.0.1-dev8).
-FM1_GOLDEN = "783be781b86548045089d216b9a80d5041b146cd1485bbd68fef246b97ece832"
-FPX_GOLDEN = "627a1a4e07a0e37b810d3a0263f7e90ef422226d94b52a790b2c96f73bcc1a48"
+FM1_GOLDEN = "9250ca9cdfdc1589d817d67b288f04907c1b36f1144a5f8b798e7ffec219064d"
+FPX_GOLDEN = "eb193f103852f8497f1c86c4d4685cc67ab835aec6e29a38d5fb263ee5070ffb"
 
 # ABI 6 changes only these files; the block sources must be identical.
 ABI6_CHANGED = {"CMakeLists.txt", "recomp_export.c", "recomp_runtime.c", "recomp_runtime.h"}
@@ -192,6 +193,44 @@ def check_outputs(abi5, abi6, fpx):
                 raise RuntimeError(f"{module}: fastmem handshake presence is wrong")
             if ("recomp_image_fpx_v1" in export) != fpx_on:
                 raise RuntimeError(f"{module}: FPX1 handshake presence is wrong")
+
+
+def opt_level_script(cmake_text, probe):
+    # The generated option-level block plus a probe line, run with cmake -P as if MSVC.
+    start = cmake_text.index("set(_recomp_opt_level O2)")
+    end = cmake_text.index("if(MSVC)\n", start)
+    return "set(MSVC 1)\n" + cmake_text[start:end] + probe + "\n"
+
+
+def run_opt_level(cmake, script, level, work):
+    script_path = work / "opt_level.cmake"
+    script_path.write_text(script)
+    env = dict(os.environ)
+    env.pop("SUYU_RECOMP_OPT_LEVEL", None)
+    if level is not None:
+        env["SUYU_RECOMP_OPT_LEVEL"] = level
+    return subprocess.run([cmake, "-P", str(script_path)], env=env, capture_output=True,
+                          text=True, check=False, timeout=60)
+
+
+def check_opt_level(module, cmake, work):
+    # SUYU_RECOMP_OPT_LEVEL: default /O2, O1 switches, anything else fails naming the value.
+    text = (module / "CMakeLists.txt").read_text()
+    script = opt_level_script(text, 'message(STATUS "level=/${_recomp_opt_level}")')
+    if "\"/${_recomp_opt_level}\" \"/bigobj\"" not in text:
+        raise RuntimeError("generated CMake does not take the optimisation level from the option")
+    for level, expected in ((None, "level=/O2"), ("O2", "level=/O2"), ("O1", "level=/O1")):
+        result = run_opt_level(cmake, script, level, work)
+        if result.returncode != 0 or expected not in result.stderr + result.stdout:
+            raise RuntimeError(f"opt level {level}: expected {expected}: {result.stderr}")
+    result = run_opt_level(cmake, script, "O3", work)
+    if result.returncode == 0 or "'O3'" not in result.stderr:
+        raise RuntimeError("an invalid optimisation level was not refused by name")
+    # Negative control: a block that ignores the environment must fail the O1 check.
+    weak = script.replace("set(_recomp_opt_level $ENV{SUYU_RECOMP_OPT_LEVEL})", "")
+    weak_result = run_opt_level(cmake, weak, "O1", work)
+    if "level=/O1" in weak_result.stderr + weak_result.stdout:
+        raise RuntimeError("opt level negative control did not weaken the check")
 
 
 def check_ggfpx(abi6gg, ggfpx):
@@ -1004,6 +1043,7 @@ def main():
             env.update(switches)
             call([exporter, generated[name]], env=env)
         check_outputs(generated["abi5"], generated["abi6"], generated["fpx"])
+        check_opt_level(generated["abi6"], args.cmake, root)
         check_guard_gen(generated["abi6"], generated["abi6gg"])
         check_ggfpx(generated["abi6gg"], generated["ggfpx"])
         check_fm_inline(generated["abi6"], generated["abi6fmi"], "FMI")

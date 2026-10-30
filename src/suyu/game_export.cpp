@@ -3553,6 +3553,13 @@ static std::uint64_t PathSizeBytes(const std::filesystem::path& path) {
 }
 
 // Keeps the module build's per-unit times: the next export deletes recomp_clang\.
+// The generated CMake validates SUYU_RECOMP_OPT_LEVEL; this only labels the compiler record.
+static QString RecompOptLevelLabel() {
+    return qEnvironmentVariable("SUYU_RECOMP_OPT_LEVEL") == QStringLiteral("O1")
+               ? QStringLiteral("/O1")
+               : QStringLiteral("/O2");
+}
+
 static void SaveModuleNinjaLog(const QString& clang_dir) {
     if (!ExportTiming::Global().Enabled()) {
         return;
@@ -5902,8 +5909,9 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                             // The prebuild project writes its shared images to bin/.
                             image_search_dirs = {clang_dir + QStringLiteral("/bin")};
                             last_recomp_compiler =
-                                QStringLiteral("clang-cl (%1, %2) /O2")
-                                    .arg(clang_version, QDir::toNativeSeparators(clang));
+                                QStringLiteral("clang-cl (%1, %2) %3")
+                                    .arg(clang_version, QDir::toNativeSeparators(clang),
+                                         RecompOptLevelLabel());
                             LOG_INFO(Frontend,
                                      "Recompiled modules compiled with {} and linked with MSVC "
                                      "link.exe",
@@ -6193,8 +6201,9 @@ QString GameExportDialog::RunAotPrecompile(const QString& exefs_dir,
                     image_search_dirs = {build_tree + QStringLiteral("/recomp_dll"),
                                          build_tree + QStringLiteral("/recomp_dll/Release")};
                     last_recomp_compiler =
-                        QStringLiteral("MSVC cl.exe %1 /O2 /bigobj")
-                            .arg(vs_env.value(QStringLiteral("VCToolsVersion")));
+                        QStringLiteral("MSVC cl.exe %1 %2 /bigobj")
+                            .arg(vs_env.value(QStringLiteral("VCToolsVersion")),
+                                 RecompOptLevelLabel());
                     LOG_INFO(Frontend, "Recompiled modules compiled with {}",
                              last_recomp_compiler.toStdString());
                 }
