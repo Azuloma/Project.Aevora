@@ -75,6 +75,10 @@ Verified details that matter for this plan:
 | F11 | The no-JIT and JIT-capable static exports have different bundle ids (`effective_backend`) although the generated C may be identical. | `ComputeBundleId` 3501. | Two 2.2 GB entries; no sharing. Not addressed in this plan. |
 | F12 | `vcvars64` capture and the clang-cl self-test run on every export. | 5493-5523, 5652. | Small fixed cost, unmeasured. |
 | F13 | Progress weights are guesses. | `SetupExportStages` 3138 (2/20/60/8/10). | The UI percentage is not evidence of where time goes. |
+| F14 | The first export after a commit spends about 28 min in `launcher_build`, and the host rebuild after an export rebuilds the whole tree. | Cause (session 54): the host helpers configured with the standalone CMake 4.4.3, the exporter with the VS CMake 4.3.1 (`cmake_candidates`, 5553); the two write different `rules.ninja` compile commands (8.3 path versus quoted long path), so ninja's command hash differs for all objects (1,402 of 1,575 rebuilt; 1,513 steps on the way back). `FLAGS`/`DEFINES`/`INCLUDES` are identical. | Verified fix without code: helpers put the VS CMake first on PATH; same commit then exported with `launcher_build` 56.8 s and the host rebuild took 8 steps. For other users' trees the exporter should follow the CMake that configured the tree (not done). |
+| F15 | Two separate builds never hash equal. | No `/Brepro`; PE `TimeDateStamp` is the link time. | Compare sizes, manifest counts, or generated C for "unchanged output" checks. |
+| F16 | Compile is 95% of a cold export and `main` alone 75%; S1 and S2 can save about 100 s of a cold run. | Baselines A1-A3 (7.5.1). | Their value is in warm exports (B spends about 56 s hashing and copying 2.3 GB). |
+| F17 | The module compile pool was RAM-derived at 7 jobs on a 12-thread PC, with a 1,536 MB budget per clang compile. | `dev2` ninja log: 7 jobs for 99.2% of `main`; `jobs10`/`jobs12`: clang-cl working set max 729 MB per process on 8 MB units. | Budget 1,024 MB (`v0.0.4-dev3`): 11 jobs, `main` 2,358 s to 1,974 s (-16%). |
 
 ### 4.2 Measured history (different configurations; context only)
 
@@ -227,6 +231,7 @@ Each stage is one behavior that can be implemented and verified alone. After eac
 - Acceptance: timing file written for A-E on the no-JIT tree; with the option off, the exported cache entry and package are byte-identical to the previous build (hash comparison of launcher, DLL, manifest); baseline table filled in this document.
 - Tests: schema unit test; negative control that corrupts a stage name or omits a stage and must fail.
 - Rollback: unset the option, or revert the commit.
+- **Status: closed 2026-10-29 (session 54) with exceptions.** Delivered: `v0.0.4-dev1` and `f6089f5` (timing and sampler), `v0.0.4-dev2` (module `.ninja_log` kept as `export_timing_ninja_log.txt`); baselines A1-A3, B, option-off (7.5.1) and the `dev2`, `jobs10`, `jobs12`, `dev3`, `f14fix` runs. Not done and accepted as exceptions: scenarios C (runtime-only change), D (option flip), E (late failure rerun); the Code reviewer pass for S0; a full `tests/recompiler_smoke/run.py` (stops on intermittent `smoke_native_set_*` build errors, unrelated to S0; the S0 unit test passes standalone); the byte-identical check with the option off (replaced by the criterion in F15).
 
 ### S1 Cache key completeness
 
